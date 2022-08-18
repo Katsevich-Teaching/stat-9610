@@ -1,0 +1,2627 @@
+% (C) Brett Klamer - MIT - http://opensource.org/licenses/MIT
+% Please contact me if you find any errors or make improvements
+% Contact details at brettklamer.com
+
+\documentclass[11pt,letterpaper,english,oneside]{book}
+%==============================================================================
+%Load Packages
+%==============================================================================
+\usepackage[left=1in,right=1in,top=1in,bottom=1in]{geometry} % easy page margins
+\usepackage[utf8]{inputenc} % editor uses utf-8 encoding
+\usepackage[T1]{fontenc} % T1 font pdf output
+\usepackage{lmodern} % Latin modern roman font
+\usepackage{bm, bbm} % bold and blackboard bold math symbols
+\usepackage{amsmath, amsfonts, amssymb, amsthm} % math packages
+\usepackage[final]{microtype} % better microtypography
+\usepackage{graphicx} % for easier grahics handling
+\usepackage[hidelinks, colorlinks=true, linkcolor = blue, urlcolor = blue]{hyperref} % to create hyperlinks
+\usepackage{float} % tells floats to stay [H]ere!
+\usepackage{mdframed} % it's better than framed. knitr uses framed so settings won't conflict
+\usepackage{enumitem} % nice lists
+\usepackage{fancyhdr} % nice headers
+\usepackage{caption}  % to control figure and table captions
+\newtheorem{proposition}{Proposition}[section]
+\newtheorem{lemma}[proposition]{Lemma}
+\newtheorem{definition}[proposition]{Definition}
+\setcounter{secnumdepth}{3}
+\setcounter{tocdepth}{1}
+
+\captionsetup{width=0.9\textwidth, justification = raggedright}
+
+%==============================================================================
+% Enter name and homework title here
+%==============================================================================
+\title{STAT 961 Lecture Notes}
+\author{Eugene Katsevich}
+\date{Fall 2021}
+
+%==============================================================================
+% Put title and author in PDF properties
+%==============================================================================
+\makeatletter % change interpretation of @
+\hypersetup{pdftitle={\@title},pdfauthor={\@author}}
+
+
+%==============================================================================
+% Header settings
+%==============================================================================
+\pagestyle{fancy} % turns on fancy header styles
+\fancyhf{} % clear all header and footer fields
+\makeatletter
+\lhead{\@author} % left header
+\chead{\@title} % center header
+\makeatother
+\rhead{Page \thepage} % right header
+\setlength{\headheight}{13.6pt} % fixes minor warning
+\makeatother % change back interpretation of @
+
+%==============================================================================
+% List spacing
+%==============================================================================
+\setlist[itemize]{parsep=0em} % fix itemize spacing
+\setlist[enumerate]{parsep=0em} % fix enumerate spacing
+
+%==============================================================================
+% set knitr options
+%==============================================================================
+% latex (change space before and after knitr kframe; based on framed package)
+\setlength{\OuterFrameSep}{0.3em}
+% R
+<<setup, include=FALSE, cache=FALSE>>=
+library(knitr)
+
+# inline hook to process the output of \Sexpr{} statements to just 2 digits
+inline_hook <- function(x) {
+  if(is.numeric(x)) x <- round(x, 2)
+  paste(as.character(x), collapse=", ")
+}
+knit_hooks$set(inline = inline_hook)
+
+# cache all chunks
+opts_chunk$set(cache = TRUE)
+
+@
+
+\begin{document}
+
+\frontmatter
+
+\maketitle
+
+\chapter*{Preface}
+
+This is a set of lecture notes developed for the PhD statistics course ``STAT 9610: Statistical Methodology'' at the University of Pennsylvania. Much of the content is adapted from Alan Agresti's book \textit{Foundations of Linear and Generalized Linear Models} (2015). These notes may contain typos and errors, and will be updated in subsequent iterations of STAT 9610.
+
+\tableofcontents
+
+\mainmatter
+
+\chapter{Linear models: Estimation}
+
+\section{Introduction}
+The overarching statistical goal addressed in this class is to learn about relationships between a response $y$ and predictors $x_1, x_2, \dots, x_p$. This abstract formulation encompasses an extremely wide variety of applications. The most widely used set of statistical models to address such problems are \textit{generalized linear models}, which are the focus of this class.
+
+Let's start by recalling the \textit{linear model}, the most fundamental of the generalized linear models. In this case, the response is continuous ($y \in \mathbb R$) and modeled as
+\begin{equation}
+y = \beta_1 x_1 + \cdots + \beta_p x_p + \epsilon,
+\label{eq:lm1}
+\end{equation}
+where
+\begin{equation}
+\epsilon \sim (0, \sigma^2), \quad \text{i.e.}\ \mathbb E[\epsilon] = 0 \ \text{and} \ \text{Var}[\epsilon] = \sigma^2.
+\label{eq:lm2}
+\end{equation}
+We view the predictors $x_1, \dots, x_p$ as fixed, so the only source of randomness in $y$ is $\epsilon$. Another way of writing the linear model is
+\begin{equation*}
+\mu \equiv \mathbb E[y] = \beta_1 x_1 + \cdots + \beta_p x_p \equiv \eta.
+\end{equation*}
+
+Not all responses are continuous, however. In some cases, we have binary responses ($y \in \{0,1\}$) or count responses ($y \in \mathbb Z$). In these cases, there is a mismatch between the
+\begin{equation*}
+\textit{linear predictor } \eta \equiv \beta_1 x_1 + \cdots + \beta_p x_p
+\end{equation*}
+and the
+\begin{equation*}
+\textit{mean response } \mu \equiv \mathbb E[y].
+\end{equation*}
+The linear predictor can take arbitrary real values $(\eta \in \mathbb R)$, but the mean response can lie in a restricted range, depending on the response type. For example, $\mu \in [0,1]$ for binary $y$ and $\mu \in [0, \infty)$ for count $y$.
+
+For these kinds of responses, it makes sense to model a \textit{transformation} of the mean as linear, rather than the mean itself:
+\begin{equation}
+g(\mu) = g(\mathbb E[y]) = \beta_1 x_1 + \cdots + \beta_p x_p = \eta.
+\label{eq:glm}
+\end{equation}
+This transformation $g$ is called the link function. For binary $y$, a common choice of link function is the \textit{logit link}, which transforms a probability into a log-odds:
+\begin{equation*}
+\text{logit}(\pi) \equiv \log \frac{\pi}{1-\pi}.
+\end{equation*}
+So the predictors contribute linearly on the log-odds scale rather than on the probability scale. For count $y$, a common choice of link function is the \textit{log link}.
+
+Models of the form~\eqref{eq:glm} are called \textit{generalized linear models} (GLMs). They specialize to linear models for identity link function, i.e. $g(\mu) = \mu$. The focus of this course are methodologies to learn about the coefficients $\bm \beta \equiv (\beta_1, \dots, \beta_p)^T$ of a GLM based on a sample $(\bm X, \bm y) \equiv \{(x_{i1}, \dots, x_{ip}, y_i)\}_{i = 1}^n$ drawn from this distribution. Learning about the coefficient vector helps us learn about the relationship between the response and the predictors. This course is (tentatively) broken up into six units.
+
+\begin{itemize}
+\item \textbf{Chapter 1. Linear model: Estimation.} The \textit{least squares} point estimate $\bm{\widehat \beta}$ of $\bm \beta$ based on a dataset $(\bm X, \bm y)$ under the linear model assumptions~\eqref{eq:lm1} and~\eqref{eq:lm2}.
+\item \textbf{Chapter 2. Linear model: Inference.} Under the additional assumption that $\epsilon \sim N(0,\sigma^2)$, how to carry out statistical inference (hypothesis testing and confidence intervals) for the coefficients.
+\item \textbf{Chapter 3. Linear model: Misspecification.} What to do when the linear model assumptions are not correct: What issues can arise, how to diagnose them, and how to fix them.
+\item \textbf{Chapter 4. GLMs: General theory.} Estimation and inference for GLMs (generalizing Chapters 1 and 2). GLMs fit neatly into a unified theory based on \textit{exponential families}.
+\item \textbf{Chapter 5. GLMs: Special cases.} Looking more closely at the most important special cases of GLMs, including logistic regression and Poisson regression.
+\item \textbf{Chapter 6. Further topics.} Linear mixed models (extending linear models to situations where correlations exist among samples); penalized GLMs (extending GLMs to situations where there are more predictors than samples); multiple testing (how to correct for multiplicity when testing many hypotheses---in GLMs or otherwise).
+\end{itemize}
+
+We will use the following notations in this course. Vector and matrix quantities will be bolded, whereas scalar quantities will not be. Capital letters will be used for matrices, and lowercase for vectors and scalars. No notational distinction will be made between random quantities and their realizations. The letters $i = 1, \dots, n$ and $j = 1, \dots, p$ will index samples and predictors, respectively. The predictors $\{x_{ij}\}_{i,j}$ will be gathered into an $n \times p$ matrix $\bm X$. The rows of $\bm X$ correspond to samples, with the $i$th row denoted $\bm x_{i*}$. The columns of $\bm X$ correspond to predictors, with the $j$th column denoted $\bm x_{*j}$. The responses $\{y_i\}_i$ will be gathered into an $n \times 1$ response vector $\bm y$. The notation $\equiv$ will be used for definitions.
+
+\section{Types of predictors; interpreting linear model coefficients}
+
+The types of predictors $x_j$ (e.g. binary or continuous) has less of an effect on the regression than the type of response, but it is still important to pay attention to the former.
+
+\paragraph{Intercepts.} It is common to include an \textit{intercept} in a linear regression model, a predictor $x_0$ such that $x_{i0} = 1$ for all $i$. When an intercept is present, we index it as the 0th predictor. The simplest kind of linear model is the \textit{intercept-only model} or the \textit{one-sample model}:
+\begin{equation}
+y = \beta_0 + \epsilon.
+\label{eq:one-sample-model}
+\end{equation}
+The parameter $\beta_0$ is the mean of the response.
+
+\paragraph{Binary predictors.} In addition to an intercept, suppose we have a binary predictor $x_1 \in \{0,1\}$ (e.g. $x_1 = 1$ for patients who took blood pressure medication and $x_1 = 0$ for those who didn't). This leads to the following linear model:
+\begin{equation}
+y = \beta_0 + \beta_1 x_1 + \epsilon.
+\label{eq:two-sample-model}
+\end{equation}
+Here, $\beta_0$ is the mean response (say blood pressure) for observations with $x_1 = 0$ and $\beta_0 + \beta_1$ is the mean response for observations with $x_1 = 1$. Therefore, the parameter $\beta_1$ is the difference in mean response between observations with $x_1 = 1$ and $x_1 = 0$. This parameter is sometimes called the \textit{effect} or \textit{effect size} of $x_1$, though a causal relationship might or might not be present. The model~\eqref{eq:two-sample-model} is sometimes called the \textit{two-sample model}, because the response data can be split into two ``samples'': those corresponding to $x_1 = 0$ and those corresponding to $x_1 = 1$.
+
+\paragraph{Categorical predictors.} A binary predictor is a special case of a categorical predictor: A predictor taking two or more discrete values. Suppose we have a predictor $w \in \{w_0, w_1, \dots, w_{C-1}\}$, where $C \geq 2$ is the number of categories and $w_0, \dots, w_{C-1}$ are the \textit{levels} of $w$. E.g. suppose $\{w_0, \dots, w_{C-1}\}$ is the collection of U.S. states, so that $C = 50$. If we want to regress a response on the categorical predictor $w$, we cannot simply set $x_1 = w$ in the context of the linear regression~\eqref{eq:two-sample-model}. Indeed, $w$ does not necessarily take numerical values. Instead, we need to add a predictor $x_j$ for each of the levels of $w$. In particular, define $x_j \equiv \mathbbm 1(w = w_j)$ for $j = 1, \dots, C-1$ and consider the regression
+\begin{equation}
+y = \beta_0 + \beta_1 x_1 + \cdots + \beta_{C-1}x_{C-1} + \epsilon.
+\label{eq:C-sample-model}
+\end{equation}
+Here, category 0 is the \textit{base category}, and $\beta_0$ represents the mean response in the base category. The coefficient $\beta_j$ represents the difference in mean response between the $j$th category and the base category.
+
+\paragraph{Quantitative predictors.} A quantitative predictor is one that can take on any real value. For example, suppose that $x_1 \in \mathbb R$, and consider the linear model
+\begin{equation}
+y = \beta_0 + \beta_1 x_1 + \epsilon.
+\label{eq:simple-regression}
+\end{equation}
+Now, the interpretation of $\beta_1$ is that an increase in $x_1$ by 1 is associated with an increase in $y$ by $\beta_1$. We must be careful to avoid saying ``an increase in $x_1$ by 1 \textit{causes} $y$ to increase by $\beta_1$'' unless we make additional causal assumptions. Note that the units of $x_1$ matter. If $x_1$ is the height of a person, then the value and the interpretation of $\beta_1$ changes depending on whether that height is measured in feet or in meters.
+
+\paragraph{Ordinal predictors.} There is an awkward category of predictor in between categorical and continuous called \textit{ordinal}. An ordinal predictor is one that takes a discrete number of values, but these values have an intrinsic ordering, e.g. $x_1 \in \{\texttt{small}, \texttt{medium}, \texttt{large}\}$. It can be treated as categorical at the cost of losing the ordering information, or as continuous if one is willing to assign quantatitive values to each category.
+
+\paragraph{Multiple predictors.} A linear regression need not contain just one predictor (aside from an intercept). For example, let's say $x_1$ and $x_2$ are two predictors. Then, a linear model with both predictors is
+\begin{equation}
+y = \beta_0 + \beta_1 x_1 + \beta_2 x_2 + \epsilon.
+\label{eq:multiple-regression}
+\end{equation}
+When there are multiple predictors, the interpretation of coefficients must be revised somewhat. For example, $\beta_1$ in the above regression is the effect of an increase in $x_1$ by 1 \textit{while holding $x_2$ constant} or \textit{while adjusting for $x_2$} or \textit{while controlling for $x_2$}. If $y$ is blood pressure, $x_1$ is a binary predictor indicating blood pressure medication taken and $x_2$ is sex, then $\beta_1$ is the effect of the medication on blood pressure while controlling for sex. In general, the coefficient of a predictor depends on what other predictors are in the model. As an extreme case, suppose the medication has no actual effect, but that men generally have higher blood pressure and higher rates of taking the medication. Then, the coefficient $\beta_1$ in the single regression model~\eqref{eq:two-sample-model} would be nonzero but the coefficient in the multiple regression model~\eqref{eq:multiple-regression} would be equal to zero. In this case, sex acts as a \textit{confounder}.
+
+
+\paragraph{Interactions.} Note that the multiple regression model~\eqref{eq:multiple-regression} has the built-in assumption that the effect of $x_1$ on $y$ is the same for any fixed value of $x_2$ (and vice versa). In some cases, the effect of one variable on the response may depend on the value of another variable. In this case, it's appropriate to add another predictor called an \textit{interaction}. Suppose $x_2$ is quantitative (e.g. years of job experience) and $x_2$ is binary (e.g. sex, with $x_2 = 1$ meaning male). Then, we can define a third predictor $x_3$ as the product of the first two, i.e. $x_3 = x_1x_2$. This gives the regression model
+\begin{equation}
+y = \beta_0 + \beta_1 x_1 + \beta_2 x_2 + \beta_3 x_1 x_2 + \epsilon.
+\label{eq:interaction}
+\end{equation}
+Now, the effect of adding another year of job experience is $\beta_1$ for females and $\beta_1 + \beta_3$ for males. The coefficient $\beta_3$ is the difference in the effect of job experience between males and females.
+
+\section{Model matrices, model vectors spaces, and identifiability}
+
+The matrix $\bm X$ is called the \textit{model matrix} or the \textit{design matrix}. Concatenating the linear model equations~\eqref{eq:lm1} and~\eqref{eq:lm2} across observations give us an equivalent formulation:
+\begin{equation*}
+\bm y = \bm X \bm \beta + \bm \epsilon; \quad \mathbb E[\bm \epsilon] = \bm 0,\ \text{Var}[\bm \epsilon] = \sigma^2 \bm I_n
+\end{equation*}
+or
+\begin{equation*}
+\mathbb E[\bm y] = \bm X \bm \beta = \bm \eta.
+\end{equation*}
+As $\bm \beta$ varies in $\mathbb R^p$, the set of possible vectors $\bm \eta \in \mathbb R^n$ is defined
+\begin{equation*}
+C(\bm X) \equiv \{\bm \eta = \bm X \bm \beta: \bm \beta \in \mathbb R^p\}.
+\end{equation*}
+$C(\bm X)$, called the \textit{model vector space}, is a subspace of $\mathbb R^n$: $C(\bm X) \subseteq \mathbb R^n$. Since
+\begin{equation*}
+\bm X \bm \beta = \beta_1 \bm x_{*1} + \cdots + \beta_p \bm x_{*p},
+\end{equation*}
+the model vector space is the column space of the matrix $\bm X$.
+
+The \textit{dimension} of $C(\bm X)$ is the rank of $\bm X$, i.e. the number of linearly independent columns of $\bm X$. If $\text{rank}(\bm X) < p$, this means that there are two different vectors $\bm \beta$ and $\bm \beta'$ such that $\bm X \bm \beta = \bm X \bm \beta'$. Therefore, we have two values of the parameter vector that give the same model for $\bm y$. This makes $\bm \beta$ \textit{not identifiable}, and makes it impossible to reliably determine $\bm \beta$ based on the data. For this reason, we will generally assume that $\bm \beta$ is \textit{identifiable}, i.e. $\bm X \bm \beta \neq \bm X \bm \beta'$ if $\bm \beta \neq \bm \beta'$. This is equivalent to the assumption that $\text{rank}(\bm X) = p$. Note that this cannot hold when $p > n$, so for the majority of the course we will assume that $p \leq n$. In this case, $\text{rank}(\bm X) = p$ if and only if $\bm X$ has \textit{full-rank}.
+
+As an example when $p \leq n$ but when $\bm \beta$ is still not identifiable, consider the case of a categorical predictor. Suppose the categories of $w$ were $\{w_1, \dots, w_{C-1}\}$, i.e. the baseline category $w_0$ did not exist. In this case, the model~\eqref{eq:C-sample-model} would not be identifiable because $x_0 = 1 = x_1 + \cdots + x_{C-1}$ and thus $x_{*0} = 1 = x_{*1} + \cdots + x_{*,C-1}$. Indeed, this means that one of the predictors can be expressed as a linear combination of the others, so $\bm X$ cannot have full rank. A simpler way of phrasing the problem is that we are describing $C-1$ intrinsic parameters (the means in each of the $C-1$ groups) with $C$ model parameters. There must therefore be some redundancy. For this reason, if we include an intercept term in the model then we must designate one of our categories as the baseline and exclude its indicator from the model.
+
+\section{Least squares estimation}
+
+Now, suppose that we are given a dataset $(\bm X, \bm y)$. How do we go about estimating $\bm \beta$ based on this data? The canonical approach is the \textit{method of least squares}:
+\begin{equation}
+\bm {\widehat \beta} \equiv \underset{\bm \beta}{\arg \min}\ \|\bm y - \bm X \bm \beta\|^2.
+\end{equation}
+The quantity
+\begin{equation}
+\|\bm y - \bm X \bm{\widehat \beta}\|^2 = \|\bm y - \bm{\widehat \mu}\|^2 = \sum_{i = 1}^n (y_i - \widehat \mu_i)^2
+\end{equation}
+is called the \textit{residual sum of squares (RSS)}, and it measures the lack of fit of the linear regression model. We therefore want to choose $\bm{\widehat \beta}$ to minimize this lack of fit. Note that if $\bm \epsilon$ is assumed to be $N(0,\sigma^2 \bm I_n)$, then the least squares solution would also be the maximum likelihood solution. Indeed, for $y_i \sim N(\mu_i, \sigma^2)$, the log-likelihood is
+\begin{equation*}
+\log \left[\prod_{i = 1}^n \frac{1}{\sqrt{2\pi\sigma^2}}\exp\left(-\frac{(y_i - \mu_i)^2}{2\sigma^2}\right)\right] = \text{constant} - \frac{1}{2\sigma^2}\sum_{i = 1}^n (y_i - \mu_i)^2.
+\end{equation*}
+
+Letting $L(\bm{\beta}) = \frac12\|\bm y - \bm X \bm \beta\|^2$, we can do some calculus to derive that
+\begin{equation}
+\frac{\partial}{\partial \bm \beta}L(\bm \beta) = -\bm X^T(\bm y - \bm X \bm \beta).
+\end{equation}
+Setting this vector of partial derivatives equal to zero, we arrive at the \textit{normal equations}:
+\begin{equation*}
+-\bm X^T(\bm y - \bm X \bm{\widehat \beta}) = 0 \quad \Longleftrightarrow \quad \bm X^T \bm X \bm {\widehat \beta} = \bm X^T \bm y.
+\end{equation*}
+If $\bm X$ is full rank, the matrix $\bm X^T \bm X$ is invertible and we can therefore conclude that
+\begin{equation*}
+\bm {\widehat \beta} = (\bm X^T \bm X)^{-1}\bm X^T \bm y.
+\end{equation*}
+
+
+\section{R demo}
+
+The R demo will be based on the \texttt{ScotsRaces} data from the textbook. Data description (quoted from the textbook):
+\begin{quote}
+``Each year the Scottish Hill Runners Association publishes a list of hill races in Scotland for the year. The table below shows data on the record time for some of the races (in minutes). Explanatory variables listed are the distance of the race (in miles) and the cumulative climb (in thousands of feet).''
+\end{quote}
+
+<<cache = FALSE, message = FALSE>>=
+library(tidyverse)
+@
+
+<<>>=
+# read the data into R
+scots_races = read_tsv("../data/ScotsRaces.dat", col_types = "cddd")
+scots_races
+@
+
+<<>>=
+# Exploration
+
+# pairs plot
+
+# Q: What are the typical ranges of the variables?
+# Q: What are the relationships among the variables?
+
+scots_races %>%
+  select(-race) %>%
+  GGally::ggpairs() +
+  theme_bw()
+
+# mile time versus distance
+
+# Q: How does mile time vary with distance?
+# Q: What races deviate from this trend?
+# Q: How does climb play into it?
+
+scots_races = scots_races %>% mutate(mile_time = time/distance)
+scots_races %>%
+  ggplot(aes(x = distance, y = mile_time, label = race, colour = climb)) +
+  geom_point() +
+  ggrepel::geom_text_repel(data = scots_races %>%
+                             filter(distance > 15 | mile_time > 9)) +
+  theme_bw()
+@
+
+<<>>=
+# Linear model
+
+# Q: What is the effect of an extra mile of distance on time?
+
+lm_fit = lm(time ~ distance + climb, data = scots_races)
+coef(lm_fit)
+
+@
+
+<<>>=
+# Linear model with interaction
+
+# Q: What is the effect of an extra mile of distance on time
+#  for a run with low climb?
+
+# Q: What is the effect of an extra mile of distance on time
+#  for a run with high climb?
+
+lm_fit_int = lm(time ~ distance * climb, data = scots_races)
+coef(lm_fit_int)
+
+scots_races %>% summarise(min_climb = min(climb), max_climb = max(climb))
+
+@
+
+\chapter{Linear models: Inference}
+
+We now understand the least squares estimator $\bm{\widehat \beta}$ from geometric and algebraic points of view. In Chapter 2, we will switch to a probabilistic perspective to derive inferential statements for linear models, in the form of hypothesis tests and confidence intervals. In order to facilitate this, we will assume that the error terms are normally distributed:
+\begin{equation}
+\bm y = \bm X \bm \beta + \bm \epsilon, \quad \text{where} \ \bm \epsilon \sim N(\bm 0, \sigma^2 \bm I_n).
+\end{equation}
+
+\section{Building blocks for linear model inference}
+
+First we put in place some building blocks: The multivariate normal distribution (Section~\ref{sec:mvrnorm}), the distributions of linear regression estimates and residuals (Section~\ref{sec:lin-reg-dist}), and estimation of the noise variance $\sigma^2$ (Section~\ref{sec:noise-estimation}).
+
+\subsection{The multivariate normal distribution} \label{sec:mvrnorm}
+
+Recall that a random vector $\bm w \in \mathbb R^d$ has a multivariate normal distribution with mean $\bm \mu$ and covariate matrix $\bm \Sigma$ if it has probability density
+\begin{equation*}
+p(\bm w) = \frac{1}{\sqrt{(2\pi)^{d}\text{det}(\bm \Sigma)}}\exp\left(-\frac{1}{2}(\bm w - \bm \mu)^T\Sigma^{-1}(\bm w - \bm \mu)\right).
+\end{equation*}
+These random vectors have lots of special properties, including:
+\begin{itemize}
+\item (Linear transformation) If $\bm w \sim N(\bm \mu, \bm \Sigma)$, then $\bm A \bm w + \bm b \sim N(\bm A \bm \mu + \bm b, \bm A \bm \Sigma \bm A^T)$.
+% \item If $\bm w_1 \sim N(\bm \mu_1, \bm \Sigma_1)$ and $\bm w_2 \sim N(\bm \mu_2, \bm \Sigma_2)$ are independent random vectors of the same dimension, then $\bm w_1 + \bm w_2 \sim N(\bm \mu_1 + \bm \mu_2, \bm \Sigma_1 + \bm \Sigma_2)$.
+\item (Independence) If $\begin{pmatrix}\bm w_1 \\ \bm w_2 \end{pmatrix} \sim N\left(\begin{pmatrix}\bm \mu_1 \\ \bm \mu_2 \end{pmatrix} , \begin{pmatrix}\bm \Sigma_{11} & \bm \Sigma_{12} \\ \bm \Sigma_{12}^T & \Sigma_{22}\end{pmatrix}\right)$, then $\bm w_1 \perp\!\!\!\perp \bm w_2$ if and only if $\bm \Sigma_{12} = \bm 0$.
+\end{itemize}
+
+\noindent An important distribution related to the multivariate normal is the $\chi^2_d$ (chi-squared with $d$ degrees of freedom) distribution, defined as
+\begin{equation*}
+\chi^2_d \equiv \sum_{j = 1}^d w_j^2 \quad \text{ for } \quad w_1, \dots, w_d \overset{\text{i.i.d.}}\sim N(0, 1).
+\end{equation*}
+
+\subsection{The distributions of linear regression estimates and residuals} \label{sec:lin-reg-dist}
+
+The most important distributional result in linear regression is that
+\begin{equation}
+\bm{\widehat\beta} \sim N(\bm \beta, \sigma^2 (\bm X^T \bm X)^{-1}).
+\label{eq:beta-hat-dist}
+\end{equation}
+Indeed, by the linear transformation property of the multivariate normal distribution,
+\begin{equation*}
+\begin{split}
+\bm y \sim N(\bm X \bm \beta, \sigma^2 \bm I_n) \Longrightarrow \bm{\widehat \beta} = (\bm X^T \bm X)^{-1}\bm X^T \bm y &\sim N((\bm X^T \bm X)^{-1}\bm X^T \bm X \bm \beta, (\bm X^T \bm X)^{-1}\bm X^T \sigma^2 \bm I_n \bm X(\bm X^T \bm X)^{-1}) \\
+&= N(\bm \beta, \sigma^2 (\bm X^T \bm X)^{-1}).
+\end{split}
+\end{equation*}
+Next, let's consider the joint distribution of $\bm{\widehat \mu} = \bm X \bm{\widehat \beta}$ and $\bm{\widehat \epsilon} = \bm y - \bm X \bm{\widehat \beta}$. We have
+\begin{equation}
+\begin{split}
+\begin{pmatrix} \bm{\widehat \mu} \\ \bm{\widehat \epsilon} \end{pmatrix} = \begin{pmatrix} \bm H \bm y \\ (\bm I - \bm H) \bm y \end{pmatrix} = \begin{pmatrix} \bm H \\ \bm I - \bm H \end{pmatrix}\bm y \sim N\left(\begin{pmatrix} \bm H \\ \bm I - \bm H \end{pmatrix}\bm X \bm \beta, \begin{pmatrix} \bm H \\ \bm I - \bm H \end{pmatrix}\cdot \sigma^2 \bm I \begin{pmatrix} \bm H & \bm I - \bm H \end{pmatrix}\right) \\
+= N\left(\begin{pmatrix} \bm X \bm \beta \\ \bm 0 \end{pmatrix}, \begin{pmatrix} \sigma^2 \bm H & \bm 0 \\ \bm 0 & \sigma^2(\bm I - \bm H) \end{pmatrix} \right).
+\end{split}
+\end{equation}
+In other words,
+\begin{equation}
+\bm{\widehat \mu} \sim N(\bm X \bm \beta, \sigma^2 \bm H) \quad \text{and} \quad \bm{\widehat \epsilon} \sim N(\bm 0, \sigma^2(\bm I - \bm H)), \quad \text{with} \quad \bm{\widehat \mu} \perp\!\!\!\perp \bm{\widehat \epsilon}.
+\label{eq:fit-and-error-dist}
+\end{equation}
+Since $\bm{\widehat \beta}$ is a deterministic function of $\bm{\widehat \mu}$ (in particular, $\bm{\widehat \beta} = (\bm X^T \bm X)^{-1}\bm X^T \bm{\widehat \mu}$), it also follows that
+\begin{equation}
+\bm{\widehat \beta} \perp\!\!\!\perp \bm{\widehat \epsilon}.
+\label{eq:beta-ind-eps}
+\end{equation}
+
+\subsection{Estimation of the noise variance $\sigma^2$} \label{sec:noise-estimation}
+
+We can't quite do inference for $\bm \beta$ based on the distributional result~\eqref{eq:beta-hat-dist} because the noise variance $\sigma^2$ is unknown to us. Intuitively, since $\sigma^2 = \mathbb E[\epsilon_i^2]$, we can get an estimate of $\sigma^2$ by looking at the quantity $\|\bm{\widehat \epsilon}\|^2$. To get the distribution of this quantity, we need the following lemma:
+\begin{lemma} \label{lem:normal-projection}
+Let $\bm w \sim N(\bm 0, \bm P)$ for some projection matrix $\bm P$. Then, $\|\bm w\|^2 \sim \chi^2_d$, where $d = \textnormal{trace}(\bm P)$ is the dimension of the subspace onto which $\bm P$ projects.
+\end{lemma}
+\begin{proof}
+Let $\bm P = \bm U \bm D \bm U^T$ be an eigenvalue decomposition of $\bm P$, where $\bm U$ is orthogonal and $\bm D$ is a diagonal matrix with $D_{ii} \in \{0,1\}$. We have $\bm w \overset d = \bm U \bm D \bm z$ for $\bm z \sim N(0, \bm I_n)$. Therefore,
+\begin{equation*}
+\|\bm w\|^2 = \|\bm D \bm z\|^2 = \sum_{i: D_{ii} = 1} z_i^2 \sim \chi^2_d, \quad \text{where } d = |\{i: D_{ii} = 1\}| = \text{trace}(D) = \text{trace}(\bm P).
+\end{equation*}
+\end{proof}
+Recall that $\bm I - \bm H$ is a projection onto the $(n-p)$-dimensional space $C(\bm X)^\perp$, so by Lemma~\ref{lem:normal-projection} and equation~\eqref{eq:fit-and-error-dist} we have
+\begin{equation}
+\|\bm{\widehat \epsilon}\|^2 \sim \sigma^2 \chi^2_{n-p}.
+\label{eq:eps-norm-dist}
+\end{equation}
+From this result, it follows that $\mathbb E[\|\bm{\widehat \epsilon}\|^2] = n-p$, so
+\begin{equation}
+\widehat \sigma^2 \equiv \frac{1}{n-p}\|\bm{\widehat \epsilon}\|^2
+\label{eq:unbiased-noise-estimate}
+\end{equation}
+is an unbiased estimate for $\sigma^2$. Why does the denominator need to be $n-p$ rather than $n$ for the estimator above to be unbiased? The reason for this is that the residuals $\bm{\widehat \epsilon}$ are the projection of the true noise vector $\bm \epsilon$ onto the lower-dimensional subspace $C(\bm X)^\perp$. To see this, note that
+\begin{equation}
+\bm{\widehat \epsilon} = (\bm I - \bm H)\bm y = (\bm I - \bm H)(\bm X \bm \beta + \bm \epsilon) = (\bm I - \bm H)\bm \epsilon.
+\end{equation}
+
+
+\section{Hypothesis testing}
+
+Typically two types of null hypotheses are tested in a regression setting: Those involving one-dimensional parameters and those involving multi-dimensional parameters. For example, consider the null hypotheses $H_0: \beta_j = 0$ and $H_0: \bm \beta_S = \bm 0$ for $S \subseteq \{0, 1, \dots, p-1\}$, respectively. We discuss tests of these two kinds of hypothesis in Sections~\ref{sec:one-dim-testing} and~\ref{sec:multi-dim-testing}, and then discuss the power of these tests in Section~\ref{sec:power}.
+
+\subsection{Testing a one-dimensional parameter} \label{sec:one-dim-testing}
+
+\paragraph{$t$-test for a single coefficient.} The most common question to ask in a linear regression context is: Is the $j$th predictor associated with the response, when controlling for the other predictors? In the language of hypothesis testing, this corresponds to the null hypothesis
+\begin{equation}
+H_0: \beta_j = 0.
+\label{eq:one-dim-null}
+\end{equation}
+According to~\eqref{eq:beta-hat-dist}, we have $\widehat \beta_j \sim N(0, \sigma^2/s_j^2)$, where, as we learned in Chapter 1,
+\begin{equation}
+s_j^{2} \equiv [(\bm X^T \bm X)^{-1}_{jj}]^{-1} = \|\bm x_{*j}^\perp\|^2  .
+\end{equation}
+Therefore,
+\begin{equation}
+\frac{\widehat \beta_j}{\sigma/s_j} \sim N(0,1),
+\label{eq:oracle-z-stat}
+\end{equation}
+and we are tempted to define a level $\alpha$ test of the null hypothesis~\eqref{eq:one-dim-null} based on this normal distribution. While this is infeasible since we don't know $\sigma^2$, we can substitute in the unbiased estimate~\eqref{eq:unbiased-noise-estimate} derived in Section~\ref{sec:noise-estimation}. Then,
+\begin{equation}
+\text{SE}_j \equiv \frac{\widehat \sigma}{s_j} \quad \text{is the standard error of } \widehat \beta_j,
+\end{equation}
+which is an approximation to the standard deviation of $\widehat \beta_j$. Dividing $\widehat \beta_j$ by its standard error gives us the $t$-statistic
+\begin{equation}
+t_j \equiv \frac{\widehat \beta_j}{\text{SE}_j} = \frac{\widehat \beta_j}{\sqrt{\frac{1}{n-p}\|\bm{\widehat \epsilon}\|^2}/s_j}.
+\end{equation}
+This statistic is \textit{pivotal}, in the sense that it has the same distribution for any $\bm \beta$ such that $\beta_j = 0$. Indeed, we can rewrite it as
+\begin{equation}
+t_j = \frac{\frac{\widehat \beta}{\sigma/s_j}}{\sqrt{\frac{\sigma^{-2}\|\bm{\widehat \epsilon}\|^2}{n-p}}}.
+\end{equation}
+Recalling the independence of $\bm{\widehat \beta}$ and $\bm{\widehat \epsilon}$~\eqref{eq:beta-ind-eps}, the scaled chi square distribution of $\|\bm{\widehat \epsilon}\|^2$~\eqref{eq:eps-norm-dist}, the standard normal distribution of $\frac{\widehat \beta}{\sigma/s_j}$~\eqref{eq:oracle-z-stat}, we find that
+\begin{equation}
+\text{under } H_0:\beta_j = 0, \quad t_j \sim \frac{N(0,1)}{\sqrt{\frac{1}{n-p}\chi^2_{n-p}}}, \quad \text{with numerator and denominator independent.}
+\end{equation}
+The latter distribution is called the \textit{$t$ distribution with $n-p$ degrees of freedom} and denoted $t_{n-p}$. This paves the way for the two-sided $t$-test:
+\begin{equation}
+\phi_t(\bm X, \bm y) = \mathbbm 1(|t_j| >t_{n-p}(1-\alpha/2)),
+\end{equation}
+where $t_{n-p}(1-\alpha/2)$ denotes the $1-\alpha/2$ quantile of $t_{n-p}$. Note that, by the law of large numbers,
+\begin{equation}
+\frac{1}{n-p}\chi^2_{n-p} \overset{P}\rightarrow 1 \quad \text{as} \quad n - p \rightarrow \infty,
+\end{equation}
+so for large $n-p$ we have $t_{j} \sim t_{n-p} \approx N(0,1)$. Hence, the $t$-test is approximately equal to the following $z$-test:
+\begin{equation}
+\phi_t(\bm X, \bm y) \approx \phi_z(\bm X, \bm y) \equiv  \mathbbm 1(|t_j| >z(1-\alpha/2)),
+\end{equation}
+where $z(1-\alpha/2)$ is the $1-\alpha/2$ quantile of $N(0,1)$. The $t$-test can also be defined in a one-sided fashion, if power against one-sided alternatives is desired.
+
+\paragraph{Example: One-sample model.}
+
+Consider the intercept-only linear regression model $y = \beta_0 + \epsilon$, and let's apply the $t$-test derived above to test the null hypothesis $H_0: \beta_0 = 0$. We have $\widehat \beta_0 = \bar y$. Furthermore, we have
+\begin{equation}
+\text{SE}^2_0 = \frac{\widehat \sigma^2}{n}, \quad \text{where} \quad \widehat \sigma^2 = \frac{1}{n-1}\|\bm y - \bar y \bm 1_n\|^2.
+\end{equation}
+Hence, we obtain the $t$ statistic
+\begin{equation}
+t = \frac{\widehat \beta_0}{\text{SE}_0} = \frac{\sqrt n \bar y }{\sqrt{\frac{1}{n-1}\|\bm y - \bar y \bm 1_n\|^2}}.
+\end{equation}
+According to the theory above, this test statistic has a null distribution of $t_{n-1}$.
+
+\paragraph{Example: Two-sample model.}
+
+Suppose we have $x_1 \in \{0,1\}$, in which case the linear regression $y = \beta_0 + \beta_1 x_1 + \epsilon$ becomes a two-sample model. We can rewrite this model as
+\begin{equation}
+y_i \sim \begin{cases}N(\beta_0, \sigma^2) \quad &\text{for } x_i = 0; \\ N(\beta_0 + \beta_1, \sigma^2) \quad &\text{for } x_i = 1.\end{cases}
+\end{equation}
+It is often of interest to test the null hypothesis $H_0: \beta_1 = 0$, i.e. that the two groups have equal means. Let's define
+\begin{equation}
+\bar y_0 \equiv \frac{1}{n_0}\sum_{i: x_i = 0} y_i, \quad \bar y_1 \equiv \frac{1}{n_1}\sum_{i: x_i = 1} y_i, \quad \text{where} \quad n_0 = |\{i: x_i = 0\}| \text{ and } n_1 = |\{i: x_i = 1\}|.
+\end{equation}
+Then, we have seen before that $\widehat \beta_0 = \bar y_0$ and $\widehat \beta_1 = \bar y_1 - \bar y_0$. We can compute that
+\begin{equation}
+s_1^2 \equiv \|\bm x_{*1}^{\perp}\|^2 = \|\bm x_{*1} - \frac{n_1}{n}\bm 1\|^2 = n_1\frac{n^2_0}{n^2} + n_0\frac{n_1^2}{n^2} = \frac{n_0 n_1}{n} = \frac{1}{\frac1{n_0} + \frac1{n_1}}
+\end{equation}
+and
+\begin{equation}
+\widehat \sigma^2 = \frac{1}{n-2}\left(\sum_{i: x_i = 0}(y_i - \bar y_0)^2 + \sum_{i: x_i = 1}(y_i - \bar y_1)^2\right).
+\end{equation}
+Therefore, we arrive at a $t$-statistic of
+\begin{equation}
+t = \frac{\sqrt{\frac{1}{\frac1{n_0} + \frac1{n_1}}}(\bar y_1 - \bar y_0)}{\sqrt{\frac{1}{n-2}\left(\sum_{i: x_i = 0}(y_i - \bar y_0)^2 + \sum_{i: x_i = 1}(y_i - \bar y_1)^2\right)}}.
+\end{equation}
+Under the null hypothesis, this statistic has a distribution of $t_{n-2}$.
+
+\paragraph{$t$-test for a contrast among coefficients.}
+
+Given a vector $\bm c \in \mathbb R^{p}$, the quantity $\bm c^T \bm \beta$ is sometimes called a \textit{contrast}. For example, suppose $\bm c = (1,-1, 0, \dots, 0)$. Then, $\bm c^T \bm \beta = \beta_1 - \beta_2$ is the difference in effects of the first and second predictors. We are sometimes interested in testing whether such a contrast is equal to zero, i.e. $H_0: \bm c^T \bm \beta = 0$. While this hypothesis can involve two or more of the predictors, the parameter $\bm c^T \bm \beta$ is still one-dimensional and therefore we can still apply a $t$-test. Going back to the distribution $\bm{\widehat \beta} \sim N(\bm \beta, \sigma^2(\bm X^T \bm X)^{-1})$, we find that
+\begin{equation*}
+\bm c^T\bm{\widehat \beta} \sim N(\bm c^T\bm \beta, \sigma^2\bm c^T (\bm X^T \bm X)^{-1} \bm c).
+\end{equation*}
+Therefore, under the null hypothesis that $\bm c^T \bm \beta = 0$, we can derive that
+\begin{equation}
+\frac{\bm c^T \bm{\widehat \beta}}{\widehat \sigma \sqrt{\bm c^T (\bm X^T \bm X)^{-1} \bm c}} \sim t_{n-p},
+\label{eq:contrasts-t-dist}
+\end{equation}
+giving us another $t$-test. Note that the $t$-tests described above can be recovered from this more general formulation by setting $\bm c = \bm e_j$, the indicator vector with $j$th coordinate equal to 1 and all others equal to zero.
+
+\subsection{Testing a multi-dimensional parameter} \label{sec:multi-dim-testing}
+
+\paragraph{$F$-test for a group of coefficients.} Now we move on to the case of testing a multi-dimensional parameter: $H_0: \bm \beta_S = \bm 0$ for some $S \subseteq \{0, 1, \dots, p-1\}$. In other words, we would like to test
+\begin{equation}
+H_0: \bm y = \bm X_{*, \text{-}S}\bm \beta_{-S} + \bm \epsilon \quad \text{versus} \quad H_1: \bm X \bm \beta + \bm \epsilon.
+\end{equation}
+To test this hypothesis, let us fit least squares coefficients $\bm{\widehat \beta}_{-S}$ and $\bm{\widehat \beta}$ for the partial model as well as the full model. If the partial model fits well, then the residuals $\bm y - \bm X_{*, \text{-}S}\bm{\widehat \beta_{-S}}$ from this model will not be much larger than the residuals $\bm y - \bm X\bm{\widehat \beta}$ from the full model. To quantify this intuition, let us recall our analysis of variance decomposition from Chapter 1:
+\begin{equation}
+\|\bm y - \bm X_{*, \text{-}S}\bm{\widehat \beta_{-S}}\|^2 = \|\bm X\bm{\widehat \beta} - \bm X_{*, \text{-}S}\bm{\widehat \beta_{-S}}\|^2 + \|\bm y - \bm X\bm{\widehat \beta}\|^2.
+\end{equation}
+Let's consider the ratio
+\begin{equation}
+\frac{\|\bm y - \bm X_{*, \text{-}S}\bm{\widehat \beta_{-S}}\|^2 - \|\bm y - \bm X\bm{\widehat \beta}\|^2}{\|\bm y - \bm X\bm{\widehat \beta}\|^2} = \frac{\|\bm X\bm{\widehat \beta} - \bm X_{*, \text{-}S}\bm{\widehat \beta}_{-S}\|^2}{\|\bm y - \bm X\bm{\widehat \beta}\|^2},
+\end{equation}
+which is the relative increase in the residual sum of squares when going from the full model to the partial model. Let us rewrite this ratio in terms of projection matrices. Let $\bm H$ be the projection matrix for the full model, and let $\bm H_{\text{-}S}$ be the projection matrix for the partial model. Note that $\bm H - \bm H_{\text{-}S}$ is the projection matrix onto the $|S|$-dimensional space $C(\bm X) \cap C(\bm X_{\text{-}S})^T$. We have
+\begin{equation}
+\frac{\|\bm X\bm{\widehat \beta} - \bm X_{*, \text{-}S}\bm{\widehat \beta}_{\text{-}S}\|^2}{\|\bm y - \bm X\bm{\widehat \beta}\|^2} = \frac{\|(\bm H - \bm H_{\text{-}S})\bm y\|^2}{\|(\bm I - \bm H)\bm y\|^2}.
+\end{equation}
+Under the null hypothesis, we have
+\begin{equation}
+\frac{\|(\bm H - \bm H_{\text{-}S})\bm y\|^2}{\|(\bm I - \bm H)\bm y\|^2} = \frac{\|(\bm H - \bm H_{\text{-}S})\bm \epsilon\|^2}{\|(\bm I - \bm H)\bm \epsilon\|^2}.
+\end{equation}
+Since the projection matrices in the numerator and denominator project onto orthogonal subspaces, we have $(\bm H - \bm H_{\text{-}S})\bm \epsilon \perp\!\!\!\perp (\bm I - \bm H)\bm \epsilon$, with $\|(\bm H - \bm H_{\text{-}S})\bm \epsilon\|^2 \sim \sigma^2 \chi^2_{|S|}$ and $\|(\bm I - \bm H)\bm \epsilon\|^2 \sim \sigma^2\chi^2_{n-p}$. Renormalizing numerator and denominator to have expectation 1 under the null, we arrive at the $F$-statistic
+\begin{equation}
+F \equiv \frac{(\|\bm y - \bm X_{*, \text{-}S}\bm{\widehat \beta_{-S}}\|^2 - \|\bm y - \bm X\bm{\widehat \beta}\|^2)/|S|}{\|\bm y - \bm X\bm{\widehat \beta}\|^2/(n-p)}.
+\end{equation}
+We have derived that under the null hypothesis,
+\begin{equation}
+F \sim \frac{\chi^2_{|S|}/|S|}{\chi^2_{n-p}/(n-p)}, \quad \text{with numerator and denominator independent.}
+\end{equation}
+This distribution is called the $F$-distribution with $|S|$ and $n-p$ degrees of freedom, and denoted $F_{|S|, n-p}$. Denoting by $F_{|S|, n-p}(1-\alpha)$ the $1-\alpha$ quantile of this distribution, we arrive at the $F$-test
+\begin{equation}
+\phi_F(\bm X, \bm y) \equiv \mathbbm 1(F > F_{|S|, n-p}(1-\alpha)).
+\end{equation}
+
+\paragraph{Example: Testing for any significant coefficients except the intercept.}
+
+Suppose $\bm x_{*,0} = \bm 1_n$ is an intercept term. Then, consider the null hypothesis $H_0: \beta_1 = \cdots = \beta_{p-1} = 0$. In other words, the null hypothesis is the intercept-only model and the alternative hypothesis is the regression model with an intercept and $p-1$ additional predictors. In this case, $S = \{1, \dots, p-1\}$ and -$S = \{0\}$. The corresponding $F$ statistic is
+\begin{equation}
+F \equiv \frac{(\|\bm y - \bar y \bm 1\|^2 - \|\bm y - \bm X\bm{\widehat \beta}\|^2)/(p-1)}{\|\bm y - \bm X\bm{\widehat \beta}\|^2/(n-p)},
+\end{equation}
+with null distribution $F_{p-1, n-p}$.
+
+\paragraph{Example: Testing for equality of group means in $C$-groups model.}
+
+As a further special case, consider the $C$-groups model from Chapter 1. Recall the ANOVA decomposition
+\begin{equation}
+\sum_{i = 1}^n (y_i - \bar y)^2 = \sum_{i = 1}^n (\bar y_{c(i)} - \bar y)^2 + \sum_{i = 1}^n (y_i - \bar y_{c(i)})^2 = \text{SSB} + \text{SSW}.
+\end{equation}
+The $F$-statistic in this case becomes
+\begin{equation}
+F = \frac{\sum_{i = 1}^n (\bar y_{c(i)} - \bar y)^2/(C-1)}{\sum_{i = 1}^n (y_i - \bar y_{c(i)})^2/(n-C)} = \frac{\text{SSB}/(C-1)}{\text{SSW}/(n-C)},
+\end{equation}
+with null distribution $F_{C-1,n-C}$.
+
+\section{Power} \label{sec:power}
+
+So far we've been focused on finding the null distributions of various test statistics in order to construct tests with Type-I error control. Now let's shift our attention to examining the power of these tests.
+
+\paragraph{The power of a $t$-test.}
+
+Consider the $t$-test of the null hypothesis $H_0: \beta_j = 0$. Suppose that, in reality, $\beta_j \neq 0$. What is the probability the $t$-test will reject the null hypothesis? To answer this question, recall that $\widehat \beta_j \sim N(\beta_j, \sigma^2/s_j^2)$. Therefore,
+\begin{equation}
+t = \frac{\widehat \beta_j}{\text{SE}_j} = \frac{\beta_j}{\text{SE}_j} + \frac{\widehat \beta_j - \beta_j}{\text{SE}_j} \overset \cdot \sim N\left(\frac{\beta_j s_j}{\sigma}, 1\right).
+\label{eq:t-alt-dist-1}
+\end{equation}
+Here we have made the approximation $\text{SE}_j \approx \frac{\sigma}{s_j}$, which is pretty good when $n-p$ is large. Therefore, the power of the two-sided $t$-test is
+\begin{equation}
+\mathbb E[\phi_t] = \mathbb P[\phi_t = 1] \approx \mathbb P[|t| > z_{1-\alpha/2}] \approx \mathbb P\left[\left|N\left(\frac{\beta_j s_j}{\sigma}, 1\right)\right| > z_{1-\alpha/2}\right].
+\end{equation}
+Therefore, the quantity $\frac{\beta_j s_j}{\sigma}$ determines the power of the $t$-test. To understand $s_j$ a little better, let's assume that the rows $\bm x_{i*}$ of the model matrix are drawn i.i.d. from some distribution $(x_0, \dots, x_{p-1})$. Then we have roughly
+\begin{equation}
+\bm x_{*j}^\perp \approx \bm x_{*j} - \mathbb E[\bm x_{*j}|\bm X_{*, \text{-}j}],
+\end{equation}
+so $x_{ij}^\perp \approx x_{ij} - \mathbb E[x_{ij}|\bm x_{i,\text{-}j}]$. Hence,
+\begin{equation}
+s_j^2 \equiv \|\bm x_{*j}^\perp\|^2 \approx n\mathbb E[(x_j-\mathbb E[x_j|\bm x_{\text{-}j}])^2] = n\mathbb E[\text{Var}[x_j|\bm x_{\text{-}j}]].
+\end{equation}
+Hence, we can rewrite the alternative distribution~\eqref{eq:t-alt-dist-1} as
+\begin{equation}
+t \overset \cdot \sim N\left(\frac{\beta_j \cdot \sqrt{n} \cdot \sqrt{\mathbb E[\text{Var}[x_j|\bm x_{\text{-}j}]]}}{\sigma}, 1\right).
+\label{eq:t-alt-dist-2}
+\end{equation}
+We can see clearly now how the power of the $t$-test varies with the effect size $\beta_j$, the sample size $n$, the degree of collinearity $\mathbb E[\text{Var}[x_j|\bm x_{\text{-}j}]]$, and the noise standard deviation $\sigma$.
+
+\paragraph{The power of an $F$-test.}
+
+Now let's turn our attention to computing the power of the $F$-test. We have
+\begin{equation}
+F = \frac{\|\bm X\bm{\widehat \beta} - \bm X_{*, \text{-}S}\bm{\widehat \beta}_{-S}\|^2/|S|}{\|\bm y - \bm X\bm{\widehat \beta}\|^2/|n-p|} = \frac{\|(\bm H-\bm H_{\text{-}S}) \bm y\|^2/|S|}{\|(\bm I - \bm H)\bm y\|^2/|n-p|} \approx \frac{\|(\bm H-\bm H_{\text{-}S}) \bm y\|^2/|S|}{\sigma^2}.
+\end{equation}
+To calculate the distribution of the numerator, we need to introduce the notion of a non-central chi-squared random variable.
+\begin{definition}
+For some vector $\bm \mu \in \mathbb R^d$, suppose $\bm z \sim N(\bm \mu, \bm I_d)$. Then, we define the distribution of $\|\bm z\|^2$ as the non-central chi-square random variable with $d$ degrees of freedom and noncentrality parameter $\|\bm \mu\|^2$ and denote this distribution by $\chi^2_d(\|\bm \mu\|^2)$.
+\end{definition}
+\noindent It can be shown that if $\bm P$ is a projection matrix and $\bm y = \bm \mu + \bm \epsilon$, then $\frac{1}{\sigma^2}\|\bm P \bm y\|^2 \sim \chi^2_{\text{tr}(\bm P)}(\frac{1}{\sigma^2}\|\bm P \bm \mu\|^2)$.
+It therefore follows that
+\begin{equation}
+F \approx \frac{\|(\bm H-\bm H_{\text{-}S}) \bm y\|^2/|S|}{\sigma^2} \sim \frac{1}{|S|}\chi^2_{|S|}(\|(\bm H-\bm H_{\text{-}S})\bm X \bm \beta\|^2) = \frac{1}{|S|}\chi^2_{|S|}\left(\frac{1}{\sigma^2}\|\bm X^\perp_{*, S}\bm \beta_S\|^2\right).
+\end{equation}
+Assuming as before that the rows of $\bm X$ are samples from a joint distribution, we can write
+\begin{equation}
+\|\bm X^\perp_{*, S}\bm \beta_S\|^2 \approx n\bm \beta_S^T \mathbb E[\text{Var}[\bm x_{S}|\bm x_{\text{-}S}]] \bm \beta_S.
+\end{equation}
+Therefore,
+\begin{equation}
+F \overset \cdot \sim \frac{1}{|S|}\chi^2_{|S|}\left(\frac{n\beta_S^T \mathbb E[\text{Var}[\bm x_{S}|\bm x_{\text{-}S}]] \bm \beta_S}{\sigma^2}\right),
+\end{equation}
+which is similar in spirit to equation~\eqref{eq:t-alt-dist-2}.
+
+\paragraph{Power when predictors are added to the model.}
+
+As we know, the outcome of a regression is a function of the predictors that are used. What happens to the $t$-test $p$-value for $H_0: \beta_j = 0$ when a predictor is added to the model? To keep things simple, let's consider the
+\begin{equation}
+\text{true underlying model:}\ y = \beta_0 x_0 + \beta_1 x_1 + \epsilon.
+\end{equation}
+Let's consider the power of testing $H_0: \beta_0 = 0$ in the regression models
+\begin{equation}
+\text{model 0:}\ y = \beta_0 x_0 + \epsilon \quad \text{versus} \quad \text{model 1:}\ y = \beta_0 x_0 + \beta_1 x_1 + \epsilon.
+\end{equation}
+
+\noindent There are four cases based on $\text{cor}[\bm x_{*0}, \bm x_{*1}]$ and the value of $\beta_1$ in the true model:
+\begin{enumerate}
+\item $\text{cor}[\bm x_{*0}, \bm x_{*1}] \neq 0$ and $\beta_1 \neq 0$. In this case, in model 0 we have omitted an important variable that is correlated with $\bm x_{*0}$. Therefore, the meaning of $\beta_0$ differs between model 0 and model 1, so it may not be meaningful to compare the $p$-values arising from these two models.
+\item $\text{cor}[\bm x_{*0}, \bm x_{*1}] \neq 0$ and $\beta_1 = 0$. In this case, we are adding a null predictor that is correlated with $x_{*0}$. Recall that the power of the $t$-test hinges on the quantity $\frac{\beta_j \cdot \sqrt{n} \cdot \sqrt{\mathbb E[\text{Var}[x_j|\bm x_{\text{-}j}]]}}{\sigma}$. Adding the predictor $x_1$ has the effect of reducing the conditional predictor variance $\mathbb E[\text{Var}[x_j|\bm x_{\text{-}j}]]$, therefore reducing the power. This is a case of \textit{predictor competition}.
+\item $\text{cor}[\bm x_{*0}, \bm x_{*1}] = 0$ and $\beta_1 \neq 0$. In this case, we are adding a non-null predictor that is orthogonal to $\bm x_{*0}$. While the conditional predictor variance $\mathbb E[\text{Var}[x_j|\bm x_{\text{-}j}]]$ remains the same due to orthogonality, the residual variance $\sigma^2$ is reduced when going from model 0 to model 1. Therefore, in this case adding $x_1$ to the model increases the power for testing $H_0: \beta_0 = 0$. This is a case of \textit{predictor collaboration}.
+\item $\text{cor}[\bm x_{*0}, \bm x_{*1}] = 0$ and $\beta_1 = 0$. In this case, we are adding an orthogonal null variable, which does not change the conditional predictor variance or the residual variance, and therefore keeps the power of the test the same.
+\end{enumerate}
+In conclusion, adding a predictor can either increase or decrease the power of a $t$-test. Similar reasoning can be applied to the $F$-test.
+
+
+\section{Confidence and prediction intervals}
+
+In addition to hypothesis testing, we often want to construct confidence intervals for the coefficients.
+
+\paragraph{Confidence interval for a coefficient.}
+
+Under $H_0: \beta_j = 0$, we showed that $\frac{\widehat \beta_j}{\widehat \sigma/s_j} \sim t_{n-p}$. The same argument shows that for arbitrary $\beta_j$, we have
+\begin{equation}
+\frac{\widehat \beta_j - \beta_j}{\widehat \sigma/s_j} \sim t_{n-p}.
+\end{equation}
+We can use this relationship to construct a confidence interval for $\beta_j$ as follows:
+\begin{equation}
+\begin{split}
+1-\alpha = \mathbb P[|t_{n-p}| \leq t_{n-p}(1-\alpha/2)] &= \mathbb P\left[\left|\frac{\widehat \beta_j - \beta_j}{\widehat \sigma/s_j}\right| \leq t_{n-p}(1-\alpha/2) \right] \\
+&= \mathbb P\left[\beta_j \in \left[\widehat \beta_j - \frac{\widehat \sigma}{s_j}t_{n-p}(1-\alpha/2), \widehat \beta_j + \frac{\widehat \sigma}{s_j}t_{n-p}(1-\alpha/2) \right]\right] \\
+&\equiv \mathbb P[\beta_j \in I_j].
+\end{split}
+\end{equation}
+The confidence interval $I_j$ defined above therefore has $1-\alpha$ coverage.
+
+\paragraph{Confidence interval for $\mathbb E[y|\bm x_0]$.}
+
+Suppose now that we have a new predictor vector $\bm x_0 \in \mathbb R^p$. The mean of the response for this predictor vector is $\mathbb E[y|\bm x_0] = \bm x_0^T \bm \beta$. Plugging in $\bm x_0$ for $\bm c$ in the relation~\eqref{eq:contrasts-t-dist}, we obtain
+\begin{equation*}
+\frac{\bm x_0^T \bm{\widehat \beta} - \bm x_0^T \bm \beta}{\widehat \sigma \sqrt{\bm x_0^T (\bm X^T \bm X)^{-1} \bm x_0}} \sim t_{n-p}.
+\end{equation*}
+From this we can derive that
+\begin{equation}
+\bm x_0^T \widehat \beta_j \pm \widehat \sigma \sqrt{\bm x_0^T (\bm X^T \bm X)^{-1} \bm x_0} \cdot t_{n-p}(1-\alpha/2)
+\end{equation}
+is a $1-\alpha$ confidence interval for $\bm x_0^T \bm \beta$.
+
+\paragraph{Prediction interval for $y|\bm x_0$.}
+
+Instead of creating a confidence interval for a point on the regression line, we may want to create a confidence interval for a new draw $y_0$ of $y$ for $\bm x = \bm x_0$, i.e. a \textit{prediction interval}. Note that
+\begin{equation}
+y_0 - \bm x_0^T \widehat \beta = \bm x_0^T \beta + \epsilon_0 - \bm x_0^T \widehat \beta = \epsilon_0 + \bm x_0^T (\beta-\widehat \beta) \sim N(0, \sigma^2 + \sigma^2 \bm x_0^T (\bm X^T \bm X)^{-1} \bm x_0).
+\end{equation}
+Therefore, we have
+\begin{equation}
+\frac{y_0 - \bm x_0^T \widehat \beta}{\widehat \sigma\sqrt{1 + \bm x_0^T (\bm X^T \bm X)^{-1} \bm x_0}} \sim t_{n-p},
+\end{equation}
+which leads to the $1-\alpha$ prediction interval
+\begin{equation}
+\bm x_0^T \widehat \beta_j \pm \widehat \sigma \sqrt{1+\bm x_0^T (\bm X^T \bm X)^{-1} \bm x_0} \cdot t_{n-p}(1-\alpha/2).
+\end{equation}
+
+\section{Practical considerations}
+
+\paragraph{Practical versus statistical significance.}
+
+You can have a statistically significant effect that is not practically significant. The hypothesis testing framework is most useful in the case when the signal to noise ratio is relatively small. Otherwise, constructing a confidence interval for the effect size is a more meaningful approach.
+
+\paragraph{Correlation versus causation, and Simpson's paradox.}
+
+We need to be very careful when interpreting linear regression coefficients, which can be sensitive to the choice of other predictors to include. You can get misleading conclusions if you omit important variables from the regression. A special case of this is \textit{Simpson's paradox}, where an important discrete variable is omitted. Consider the example in Figure~\ref{fig:simpson-paradox}.
+\begin{figure}[ht!]
+\includegraphics[width = \textwidth]{figures/kidney-stones.png}
+\caption{An example of Simpson's paradox (source: Wikipedia).}
+\label{fig:simpson-paradox}
+\end{figure}
+
+\paragraph{Dealing with correlated predictors.}
+
+It depends on the goal. If we're trying to tease apart effects of correlated predictors, then we have no choice but to proceed as usual despite lower power. Otherwise, we can test predictors in groups via the $F$-test to get higher power at the cost of lower ``resolution.''
+
+\paragraph{Model selection.}
+
+We need to ask ourselves: Why do we want to do model selection? It can either be for prediction purposes or for inferential purposes. If it is for prediction purposes, then we can apply cross-validation to select a model and we don't need to think very hard about statistical significance. If it is for inference, then we need to be more careful. There are various classical model selection criteria (e.g. AIC, BIC), but it is not entirely clear what statistical guarantee we are getting for the resulting models. A simpler approach is to apply a $t$-test for each variable in the model, apply a multiple testing correction to the resulting $p$-values, and report the set of significant variables and the associated guarantee. Re-fitting the linear regression after model selection leads us into some dicey inferential territory due to selection bias. This is the subject of ongoing research and the jury is still out on the best way of doing this.
+
+\section{R demo}
+
+Let's put into practice what we've learned in Chapters 1 and 2.
+
+<<message = FALSE>>=
+houses_data = read_tsv("../data/Houses.dat")
+houses_data
+
+# explore the variables
+mean_price =
+  houses_data %>%
+  summarise(mean_price = mean(price)) %>%
+    pull()
+
+houses_data %>%
+  ggplot(aes(x = price)) +
+  geom_histogram() +
+  geom_vline(xintercept = mean_price,
+             colour = "red",
+             linetype = "dashed") +
+  theme_bw()
+
+houses_data %>%
+  summarise(mean_price = mean(price),
+            median_price = median(price))
+
+houses_data %>%
+  select(price, size, taxes) %>%
+  GGally::ggpairs()
+
+houses_data %>%
+  ggplot(aes(x = factor(beds), y = price)) +
+  geom_boxplot() +
+  theme_bw()
+
+houses_data %>%
+  ggplot(aes(x = factor(baths), y = price)) +
+  geom_boxplot() +
+  theme_bw()
+
+houses_data %>%
+  ggplot(aes(x = factor(new), y = price)) +
+  geom_boxplot() +
+  theme_bw()
+
+# Q: Should we model beds/baths as categorical or continuous?
+# A: Probably categorical, given potentially nonlinear trend.
+
+# running a regression and interpreting the summary
+
+lm_fit = lm(price ~
+              factor(new) +
+              factor(beds) +
+              factor(baths) +
+              size,
+            data = houses_data)
+
+summary(lm_fit)
+
+# hypothesis tests, confidence intervals (including analysis of variance test (aov))
+
+
+lm_fit_partial = lm(price ~
+              factor(new) +
+              factor(baths) +
+              size,
+            data = houses_data)
+
+anova(lm_fit_partial, lm_fit)
+
+lm_fit_not_factor = lm(price ~
+              factor(new) +
+                beds +
+              factor(baths) +
+              size,
+            data = houses_data)
+
+anova(lm_fit_partial, lm_fit_not_factor)
+
+confint(lm_fit)
+
+aov_fit = aov(price ~ factor(beds), data = houses_data)
+summary(aov_fit)
+
+# interactions
+
+lm_fit_interaction =
+  lm(price ~ size*factor(beds),
+     data = houses_data)
+
+summary(lm_fit_interaction)
+
+# confidence bands
+
+houses_data %>%
+  ggplot(aes(x = size, y = price)) +
+  geom_point() +
+  geom_smooth(method = "lm",
+              formula = "y ~ x") +
+  theme_bw()
+
+# to produce confidence intervals for fits in general, use the predict() function
+
+@
+
+
+\chapter{Linear models: Misspecification}
+
+In our discussion of linear model inference in Chapter 2, we assumed the normal linear model throughout:
+\begin{equation}
+\bm y = \bm X \bm \beta + \bm \epsilon, \quad \text{where} \ \bm \epsilon \sim N(\bm 0, \sigma^2 \bm I_n).
+\end{equation}
+In this unit, we will discuss what happens when this model is misspecified:
+\begin{itemize}
+\item Non-normality (Section~\ref{sec:non-normality}): $\bm \epsilon \sim (0, \sigma^2 \bm I_n)$ but not $N(0, \sigma^2 \bm I_n)$.
+\item Heteroskedastic errors (Section~\ref{sec:heteroskedasticity}): $\epsilon_i \overset{\text{ind}}\sim N(0, \sigma^2_i)$, where it is not the case that $\sigma^2_1 = \cdots = \sigma^2_n$.
+\item Correlated errors (Section~\ref{sec:correlated-errors}): It is not the case that $(\epsilon_1, \dots, \epsilon_n)$ are independent.
+\item Model bias (Section~\ref{sec:model-bias}): It is not the case that $\mathbb E[\bm y] = \bm X \bm \beta$ for some $\bm \beta \in \mathbb R^p$.
+\item Outliers (Section~\ref{sec:outliers}): For one or more $i$, it is not the case that $y_i \sim N(\bm x_{i*}^T \bm \beta, \sigma^2)$.
+\end{itemize}
+For each type of misspecification, we will discuss its origins, consequences, detection, and fixes (Sections~\ref{sec:non-normality}-\ref{sec:outliers}). We conclude with an R demo (Section~\ref{sec:R-demo-misspecification}).
+
+\section{Non-normality} \label{sec:non-normality}
+
+\subsection{Origin}
+
+Non-normality occurs when the distribution of $y|\bm x$ is either skewed or has heavier tails than the normal distribution. This may happen, for example, if there is some discreteness in $y$.
+
+\subsection{Consequences} \label{sec:nonnormality-consequences}
+
+Non-normality is the most benign of linear model misspecifications. While we derived linear model inferences under the normality assumption, all the corresponding statements hold asymptotically without this assumption. Recall Homework 2 Question 1, or take for example the simpler problem of estimating the mean $\mu$ of a distribution based on $n$ samples from it: We can test $H_0: \mu = 0$ and build a confidence interval for $\mu$ even if the underlying distribution is not normal. So if $n$ is relatively large and $p$ is relatively small, you need not worry too much. If $n$ is small and the errors are highly skewed or heavy-tailed, there might be an issue.
+
+\subsection{Detection}
+
+Non-normality is a property of the error-terms $\epsilon_i$. We do not observe these directly, but we can approximate these using the residuals
+\begin{equation}
+\widehat \epsilon_i = y_i - \bm x_{i*}^T \bm{\widehat \beta}.
+\end{equation}
+Recall from Chapter 2 that $\text{Var}[\bm{\widehat \epsilon}] = \sigma^2(\bm I - \bm H)$. Letting $h_i$ be the $i$th diagonal entry of $\bm H$, it follows that $\widehat \epsilon_i \sim (0, \sigma^2(1-h_i))$. The \textit{standardized residuals} are defined as
+\begin{equation}
+r_i = \frac{\widehat \epsilon_i}{\widehat \sigma \sqrt{1-h_i}}.
+\label{eq:standardized-residuals}
+\end{equation}
+Under normality, we would expect $r_i \overset \cdot \sim N(0,1)$. We can therefore assess normality by producing a histogram or normal QQ-plot of these residuals (see Figure~\ref{fig:qqplot}).
+
+\begin{figure}[h!]
+\centering
+\includegraphics[width = 0.9\textwidth]{figures/qqplot.png}
+\caption{Histogram and normal QQ plot of standardized residuals.}
+\label{fig:qqplot}
+\end{figure}
+
+\subsection{Fixes}
+
+As mentioned in Section~\ref{sec:nonnormality-consequences}, non-normality is not necessarily a problem that needs to be fixed, except in small samples. In small samples, we can apply the bootstrap (Section~\ref{sec:bootstrap}) for robust standard error computation and a few different strategies (Section~\ref{sec:robust-tests}) for robust hypothesis testing.
+
+\section{Heteroskedastic errors} \label{sec:heteroskedasticity}
+
+\subsection{Origin}
+
+Suppose each observation $y_i$ is actually the average of $n_i$ underlying observations, each with variance $\sigma^2$. Then, the variance of $y_i$ is $\sigma^2/n_i$, which will differ across $i$ if $n_i$ differ. It is also common to see the variance of a distribution increase as the mean increases (as in Figure~\ref{fig:heteroskedasticity}), whereas for a linear model the variance of $y$ stays constant as the mean of $y$ varies.
+
+\subsection{Consequences}
+
+All normal linear model inference from Chapter 2 hinges on the assumption that $\epsilon_i \overset{\text{i.i.d.}} \sim N(0, \sigma^2)$. The coverage of confidence intervals and the levels of hypothesis tests may depart from their nominal levels. This is easiest to see if we consider the width of confidence intervals for $\bm x_0^T \bm \beta$; see Figure~\ref{fig:heteroskedasticity} for intuition.
+
+
+\begin{figure}[h!]
+\centering
+\includegraphics[width = 0.6\textwidth]{figures/heteroskedasticity.png}
+\caption{Heteroskedasticity in a simple bivariate linear model (\href{http://www3.wabash.edu/econometrics/EconometricsBook/chap19.htm}{image source}).}
+\label{fig:heteroskedasticity}
+\end{figure}
+
+\subsection{Detection}
+
+Heteroskedasticity is usually assessed via the \textit{residual plot} (Figure~\ref{fig:residual-plots}). In this plot, the standardized residuals $r_i$~\eqref{eq:standardized-residuals} are plotted against the fitted values $\widehat \mu_i$. In the absence of heteroskedasticity, the spread of the points around the origin should be roughly constant as a function of $\widehat \mu$ (Figure~\ref{fig:residual-plots}(a)). A common sign of heteroskedasticity is the fan shape where variance increases as a function of $\widehat \mu$ (Figure~\ref{fig:residual-plots}(c)).
+
+\begin{figure}[h!]
+\centering
+\includegraphics[width = \textwidth]{figures/residual-plots.png}
+\caption{Residuals plotted against linear-model fitted values that reflect (a) model ade- quacy, (b) quadratic rather than linear relationship, and (c) nonconstant variance(image source: Agresti Figure 2.8).}
+\label{fig:residual-plots}
+\end{figure}
+
+\subsection{Fixes}
+
+Heteroskedasticity-robust standard errors for hypothesis testing and confidence intervals can be obtained using a number of strategies, including the Huber-White sandwich estimator~\ref{sec:huber-white}, the bootstrap~\ref{sec:bootstrap}, and permutation tests~\ref{sec:permutation-tests}.
+
+\section{Correlated errors} \label{sec:correlated-errors}
+
+\subsection{Origin} \label{sec:origin-correlated-errors}
+
+Correlated errors can arise when observations have group, spatial, or temporal structure. Below are examples:
+\begin{itemize}
+\item Group/clustered structure: We have 10 samples $(\bm x_{i*}, y_i)$ each from 100 schools.
+\item Spatial structure: We have 100 soil samples from a 10$\times$10 grid on a 1km$\times$1km field.
+\item Temporal structure: We have 366 COVID positivity rate measurements, one from each day of the year 2020.
+\end{itemize}
+The issue arises because there are common sources of variation among sample that are in the same group or spatially/temporally close to one another.
+
+\subsection{Consequences}
+
+Like with heteroskedastic errors, correlated errors can cause invalid standard errors. In particular, positively correlated errors typically cause standard errors to be smaller than they should be, leading to inflated Type-I error rates. For intuition, consider estimating the mean of a distribution based on $n$ samples. Consider the cases when these samples are independent, compared to when they are perfectly correlated. The effective sample size in the former case is $n$ and in the latter case is 1.
+
+\subsection{Detection}
+
+Residual plots once again come in handy to detect correlated errors. Instead of plotting the standardized residuals against the fitted values, we should plot the residuals against whatever variables we think might explain variation in the response that the regression does not account for. In the presence of group structures, we can plot residuals versus group (via a boxplot); in the presence of spatial or temporal structure, we can plot residuals as a function of space or time. If the residuals show a dependency on these variables, this suggests they are correlated.
+
+\subsection{Fixes}
+
+There are a few approaches to addressing correlated errors:
+\begin{enumerate}
+\item Estimate the covariance matrix $\bm \Sigma$ of the observations, so that $\bm y \sim N(\bm X \bm \beta, \Sigma)$. This is a \textit{generalized least squares} problem for which inference can be carried out. The generalized least squares estimate is $\bm{\widehat \beta} = (\bm X^T \bm \Sigma^{-1}\bm X)^{-1}\bm X^T \bm \Sigma^{-1}\bm y$, which is distributed as $\bm{\widehat \beta} \sim N(\bm \beta, (\bm X^T \bm \Sigma^{-1}\bm X)^{-1})$. We can carry out inference based on the latter distributional result analogously to how we did so in Chapter 2. A special case of this is the \textit{linear mixed effects model}, which hopefully we will have time to discuss in Chapter 6.
+\item Use the Liang-Zeger variance estimator; see Section~\ref{sec:huber-white}.
+\item Apply a clustered or block bootstrap; see Section~\ref{sec:bootstrap}.
+\end{enumerate}
+
+\section{Model bias} \label{sec:model-bias}
+
+\subsection{Origin}
+
+Model bias arises when predictors are left out of the regression model:
+\begin{equation}
+\text{assumed model: } \bm y = \bm X \bm \beta + \bm \epsilon; \quad \text{actual model: } \bm y = \bm X \bm \beta + \bm Z \bm \gamma + \bm \epsilon.
+\label{eq:confounding}
+\end{equation}
+We may not always know about or measure all the variables that impact a response $\bm y$.
+
+Model bias can also arise when the predictors do not impact the response on the linear scale. For example:
+\begin{equation}
+\text{assumed model: } \mathbb E[\bm y] = \bm X \bm \beta; \quad \text{actual model: } g(\mathbb E[\bm y]) = \bm X \bm \beta.
+\label{eq:wrong-scale}
+\end{equation}
+
+\subsection{Consequences}
+
+In cases of model bias, the parameters $\bm \beta$ in the assumed linear model lose their meanings. The least squares estimate $\bm{\widehat \beta}$ will be a biased estimate for the parameter we probably actually want to estimate. In the case~\eqref{eq:confounding} when predictors are left out of the regression model, these additional predictors $\bm Z$ will act as confounders and create bias in $\bm{\widehat \beta}$ as an estimate of the $\bm \beta$ parameters in the true model, unless $\bm X^T \bm Z = 0$. As discussed in Chapter 2, this can lead to misleading conclusions.
+
+\subsection{Detection}
+
+Similarly to the detection of correlated errors, we can try to identify model bias by plotting the standardized residuals against predictors that may have been left out of the model. A good place to start is to plot standardized residuals against the predictors $\bm X$ (one at a time) that are in the model, since nonlinear transformations of these might have been left out. In this case, you would see something like Figure~\ref{fig:residual-plots}(b).
+
+It is possible to formally test for model bias in cases when we have repeated observations of the response for each value of the predictor vector. In particular, suppose that $\bm x_{i*} = \bm x_c$ for $c = c(i)$ and predictor vectors $\bm x_1, \dots, \bm x_C \in \mathbb R^p$. Then, consider testing the following hypothesis:
+\begin{equation}
+H_0: y_i = \bm x_{i*}^T \bm \beta + \epsilon_i \quad \text{versus} \quad H_1: y_i = \beta_{c(i)} + \epsilon_i.
+\end{equation}
+The model under $H_0$ (the linear model) is nested in the model for $H_1$ (the saturated model), and we can test this hypothesis using an $F$-test called the \textit{lack of fit $F$-test}.
+
+
+\subsection{Fixes}
+
+To fix model bias in the case~\eqref{eq:confounding}, ideally we would identify the missing predictors $\bm Z$ and add them to the regression model. This may not always be feasible or possible. To fix model bias in the case~\eqref{eq:wrong-scale}, it is sometimes advocated to find a transformation $g$ (e.g. a square root or a logarithm) of $\bm y$ such that $\mathbb E[g(\bm y)] = \bm X \bm{\beta}$. However, a better solution is to use a \textit{generalized linear model}, which we will discuss starting in Chapter 4.
+
+\section{Outliers} \label{sec:outliers}
+
+\subsection{Origin}
+
+Outliers often arise due to measurement or data entry errors. An observation can be an outlier in $\bm x$, in $y$, or both.
+
+\subsection{Consequences}
+
+An outlier can have the effect of biasing the estimate $\bm{\widehat \beta}$. This occurs when an observation has outlying $\bm x$ as well as outlying $y$.
+
+\subsection{Detection}
+
+There are a few measures associated to an observation that can be used to detect outliers, though none are perfect. The first quantity is called the \textit{leverage}, defined as
+\begin{equation}
+\text{leverage of observation } i \equiv \text{corr}(y_i, \widehat \mu_i)^2.
+\end{equation}
+This quantity measures the extent to which the fitted value $\widehat \mu_i$ is sensitive to the (noise in the) observation $y_i$. It can be derived that
+\begin{equation}
+\text{leverage of observation } i = h_{ii},
+\end{equation}
+which is the $i$th diagonal element of the hat matrix $\bm H$. This is related to the fact that $\text{Var}[\widehat \epsilon_i] = \sigma^2(1-h_{ii})$. The larger the leverage, the smaller the variance of the residual, so the closer the line passes to the $i$th observation. The leverage of an observation is larger to the extent that $\bm x_{i*}$ is far from $\bm{\bar x}$. For example, in the bivariate linear model $y_i = \beta_0 + \beta_1 x_i + \epsilon_i$,
+\begin{equation*}
+h_{ii} = \frac{1}{n} + \frac{(x_i - \bar x)^2}{\sum_{i' = 1}^n (x_{i'} - \bar x)^2}.
+\end{equation*}
+
+Note that the leverage is not a function of $y_i$, so a high-leverage point might or might not be an outlier in $y_i$ and therefore might or might not have a strong impact on the regression. To assess more directly whether an observation is \textit{influential}, we can compare the least squares fits with and without that observation. To this end, we define the \textit{Cook's distance}
+\begin{equation}
+D_i = \frac{\sum_{i' = 1}^n (\widehat \mu_{i'} - \widehat \mu^{\text{-}i}_{i'})^2}{p\widehat \sigma^2},
+\end{equation}
+where $\widehat \mu^{\text{-}i}_{i'} = \bm x_{i*}^T \bm{\widehat{\beta}}^{\text{-}i}$ and $\bm{\widehat{\beta}}^{\text{-}i}$ is the least squares estimate based on $(\bm X_{\text{-}i,*}, \bm y_{\text{-}i})$. An observation is considered influential if it has Cooks distance greater than one.
+
+There is a connection between Cook's distance and leverage:
+\begin{equation}
+D_i = \left(\frac{y_i - \widehat \mu_i}{\widehat \sigma \sqrt{1-h_{ii}}}\right)^2 \cdot \frac{h_{ii}}{p(1-h_{ii})}.
+\end{equation}
+We recognize the first term as the standardized residual; therefore a point is influential if its residual and leverage are large.
+
+Note that Cook's distance may not successfully identify outliers. For example, if there are groups of outliers, then they will \textit{mask} each other in the calculation of Cook's distance.
+
+\subsection{Fixes}
+
+If outliers can be detected, then the fix is to remove them from the regression. But, we need to be careful. Definitively determining whether observations are outliers can be tricky. Outlier detection can even be used as a way to commit fraud with data, as now-defunct blood testing start-up \href{https://arstechnica.com/tech-policy/2021/09/cherry-picking-data-was-routine-practice-at-theranos-former-lab-worker-says/}{Theranos is alleged to have done}.
+
+As an alternative to removing outliers, we can fit estimators $\bm{\widehat \beta}$ that are less sensitive to outliers; see Section~\ref{sec:robust-estimation}.
+
+\section{Robust inference}
+
+There are a number of strategies designed to address one or more of the misspecification issues listed above. These fall into the categories of robust estimation (to get better estimates of $\bm{\widehat \beta}$ in the presence of outliers; see Section~\ref{sec:robust-estimation}), robust standard error computation (to get more reliable standard errors in the presence of heteroskedasticity or correlated errors; see Section~\ref{sec:robust-standard-errors}), and robust hypothesis testing (to get more reliable hypothesis tests in the presence of heteroskedasticity, correlated errors, and sometimes even model bias; see Section~\ref{sec:robust-tests}).
+
+\subsection{Robust estimation} \label{sec:robust-estimation}
+
+The squared error loss $\sum_{i = 1}^n (y_i - \bm x_{i*}^T \bm \beta)^2$ is sensitive to outliers in the sense that a large value of $y_i - \bm x_{i*}^T \bm \beta$ can have a significant impact on the loss function. The least squares estimate, as the minimizer of this loss function, is therefore sensitive to outliers. One way of addressing this challenge is to replace the squared error loss by a different loss that does not grow so quickly in $y_i - \bm x_{i*}^T \bm \beta$. A popular choice for such a loss function is the Huber loss:
+\begin{equation}
+L_\delta(y_i - \bm x_{i*}^T \bm \beta) =
+\begin{cases}
+\frac{1}{2}(y_i - \bm x_{i*}^T \bm \beta)^2, \quad &\text{if } |y_i - \bm x_{i*}^T \bm \beta| \leq \delta; \\
+\delta(|y_i - \bm x_{i*}^T \bm \beta|-\delta), \quad &\text{if } |y_i - \bm x_{i*}^T \bm \beta| > \delta.
+\end{cases}
+\end{equation}
+This function is differentiable, like the squared error loss, but grows linearly as opposed to quadratically. We can then define
+\begin{equation*}
+\bm{\widehat{\beta}}^{\text{Huber}} \equiv \underset{\bm \beta}{\arg \min}\ \sum_{i = 1}^n L_\delta(y_i - \bm x_{i*}^T \bm \beta).
+\end{equation*}
+This is an \textit{M-estimator}; it is consistent and has an asymptotic normal distribution that can be used for inference.
+
+\subsection{Robust standard error computation} \label{sec:robust-standard-errors}
+
+When the error terms in a regression are not homoskedastic and independent, the usual standard errors are invalid. There are several strategies to computing valid standard errors in such situations.
+
+\subsubsection{Huber-White and Liang-Zeger sandwich estimators} \label{sec:huber-white}
+
+Let's say that $\bm y = \bm X \bm \beta + \bm \epsilon$, where $\bm \epsilon \sim N(\bm 0, \bm \Sigma)$. Then, we can compute that the covariance matrix of the least squares estimate $\bm{\widehat \beta}$ is
+\begin{equation}
+\text{Var}[\bm{\widehat \beta}] = (\bm X^T \bm X)^{-1}(\bm X^T \bm \Sigma \bm X)(\bm X^T \bm X)^{-1}.
+\label{eq:sandwich}
+\end{equation}
+Note that this expression reduces to the usual $\sigma^2(\bm X^T \bm X)^{-1}$ when $\bm \Sigma = \sigma^2 \bm I$. It is called the sandwich variance between we have the $(\bm X^T \bm \Sigma \bm X)$ term sandwiched between two $(\bm X^T \bm X)^{-1}$ terms. If we have some estimate $\bm{\widehat \Sigma}$ of the covariance matrix, we can construct
+\begin{equation}
+\widehat{\text{Var}}[\bm{\widehat \beta}] \equiv (\bm X^T \bm X)^{-1}(\bm X^T \bm{\widehat\Sigma} \bm X)(\bm X^T \bm X)^{-1}.
+\end{equation}
+Different estimates $\bm{\widehat \Sigma}$ are appropriate in different situation. Below we consider two of the most common choices: one for heteroskedasticity (due to Huber-White) and one for correlated errors (due to Liang-Zeger).
+
+\paragraph{Huber-White standard errors.}
+
+Now, suppose $\bm \Sigma = \text{diag}(\sigma_1^2, \dots, \sigma_n^2)$ for some variances $\sigma_1^2, \dots, \sigma_n^2 > 0$. The Huber-White sandwich estimator is defined by~\eqref{eq:sandwich}, with
+\begin{equation}
+\bm{\widehat\Sigma} \equiv \text{diag}(\widehat \sigma_1^2, \dots, \widehat \sigma_n^2), \quad \text{where} \quad \widehat \sigma_i^2 = (y_i - \bm x_{i*}^T \bm{\widehat \beta})^2.
+\end{equation}
+While each estimator $\widehat \sigma_i^2$ is very poor, Huber and White's insight was that the resulting estimate of the (averaged) quantity $\bm X^T \bm{\widehat \Sigma}\bm X$ is not bad.
+
+\paragraph{Liang-Zeger standard errors.}
+
+Next, let's consider the case of correlated errors. Specifically, suppose that the observations are \textit{clustered}, with correlated errors among clusters but not between clusters (recall Section~\ref{sec:origin-correlated-errors}). Suppose there are $C$ clusters of observations, with the $i$th observation belonging to cluster $c(i) \in \{1, \dots, C\}$. Suppose for the sake of simplicity that the observations are ordered so that clusters are contiguous. Let $\bm{\widehat \epsilon}_c$ be the vector of residuals in cluster $c$, so that $\bm{\widehat \epsilon} = (\bm{\widehat \epsilon}_1, \dots, \bm{\widehat \epsilon}_C)$. Then, the true covariance matrix is $\bm \Sigma = \text{block-diag}(\bm \Sigma_1, \dots, \bm \Sigma_C)$ for some positive definite $\bm \Sigma_1, \dots, \bm \Sigma_C$. The Liang-Zeger estimator is then defined by~\eqref{eq:sandwich}, with
+\begin{equation}
+\bm{\widehat\Sigma} \equiv \text{block-diag}(\bm{\widehat\Sigma_1}, \dots, \bm{\widehat \Sigma_C}), \quad \text{where} \quad  \bm{\widehat\Sigma_c} \equiv \bm{\widehat \epsilon}_c \bm{\widehat \epsilon}_c^T.
+\end{equation}
+Note that the Liang-Zeger estimator is a generalization of the Huber-White estimator. Its justification is similar as well: while each $\bm{\widehat\Sigma_c}$ is a poor estimator, the resulting estimate of the (averaged) quantity $\bm X^T \bm{\widehat \Sigma}\bm X$ is not bad as long as the number of clusters is large. Liang-Zeger standard errors are sometimes referred to as ``clustered standard errors.''
+
+\subsubsection{Bootstrap} \label{sec:bootstrap}
+
+A completely different approach to constructing robust standard errors is the \textit{bootstrap}. The core idea of the bootstrap is to use the data to construct an approximation to the data-generating distribution, and then to approximate the sampling distribution of any test statistic by simulating from this approximate data-generating distribution. This approach, pioneered by Brad Efron in 1979, replaces mathematical derivations with computation. The bootstrap is extremely flexible, and can be adapted to apply in a variety of settings.
+
+\paragraph{Parametric bootstrap.}
+
+The parametric bootstrap proceeds by fitting a parametric model, and then by resampling from this model. In the linear regression case, we use the original data to fit $(\bm{\widehat \beta}, \widehat \sigma^2)$. Then, we sample new response vectors
+\begin{equation}
+y^b_i = \bm x_{i*}^T\bm{\widehat \beta} + \epsilon_i^b, \quad \epsilon_i^b \overset{\text{i.i.d.}}\sim N(0, \widehat \sigma^2) \quad \text{for } b = 1, \dots, B.
+\end{equation}
+We then fit a least squares coefficient vector $\bm{\widehat \beta}^b$ to $(\bm X, \bm y^b)$ for each $b$, and then get variance estimates by treating $\{\bm{\widehat \beta}^b\}_{b = 1}^B$ as though it were the sampling distribution of $\bm{\widehat \beta}$. For example, we could use the sample standard deviation of $\widehat \beta_j^b$ as the standard error for $\beta_j$.
+
+This the most model-based of the bootstrap variants. It assumes a completely well-specified model, and gives equivalent results to traditional parametric inference. It is typically not applied in regression settings, and presented here mainly for pedagogical purposes.
+
+\paragraph{Residual bootstrap.}
+
+We can weaken the assumptions of the parametric bootstrap by assuming only that $y_i = \bm x_{i*}^T \bm \beta + \epsilon_i$, where $\epsilon_i \overset{\text{i.i.d.}}\sim F$ for some distribution $F$. Then, the data-generating distribution is specified by $(\bm \beta, F)$, which we approximate by substituting $\bm{\widehat \beta}$ for $\bm \beta$ and the empirical distribution of the residuals $\widehat \epsilon_i$ (call it $\widehat F$) for $F$. We can then sample new response vectors based on this approximate data-generating distribution:
+\begin{equation}
+y_i^b = \bm x_{i*}^T \bm{\widehat \beta} + \epsilon_i^b, \quad \epsilon_i^b \overset{\text{i.i.d.}}\sim \widehat F \quad \text{for } b = 1, \dots, B.
+\label{eq:residual_bootstrap}
+\end{equation}
+Note that i.i.d. sampling $\epsilon_i^b$ from $\widehat F$ amounts to sampling $(\epsilon_1^b, \dots, \epsilon_n^b)$ with replacement from $(\widehat \epsilon_1, \dots, \widehat \epsilon_n)$. Then, as with the parametric bootstrap, we fit a least squares coefficient vector $\bm{\widehat \beta}^b$ to $(\bm X, \bm y^b)$ for each $b$ and obtain standard errors by treating $\{\bm{\widehat \beta}^b\}_{b = 1}^B$ as though it were the sampling distribution of $\bm{\widehat \beta}$.
+
+The residual bootstrap corrects for non-normality, but not heteroskedasticity or correlated errors, since it assumes that the noise terms are i.i.d. from some distribution.
+
+\paragraph{Pairs bootstrap.}
+
+Weakening the assumptions further, let's assume only that $(\bm x_{i*}, y_i) \overset{\text{i.i.d.}} \sim F$ for some joint distribution $F$. We then resample our observations by sampling with replacement from the original observations.
+
+Note that, unlike the parametric or residual bootstrap, the pairs bootstrap treats the predictors $\bm X$ as random rather than fixed. The benefit of the pairs bootstrap is that it does not assume homoskedasticity, since the error variance is allowed to depend on $\bm x_{i*}$. Therefore, the pairs bootstrap addresses both non-normality and heteroskedasticity, though it does not address correlated errors (though variants of the pairs bootstrap do; see below). Note that the pairs bootstrap does not even assume that $\mathbb E[y_i] = \bm x_{i*}^T \bm \beta$ for some $\bm \beta$. However, in the presence of model bias, it is unclear for what parameters we are even doing inference. While the pairs bootstrap assumes less than the residual bootstrap, it may be somewhat less efficient in the case when the assumptions of the latter are met.
+
+The pairs bootstrap has several variants that help it overcome correlated errors, in addition to heteroskedasticity. The \textit{cluster bootstrap} is applicable in the case when errors have a clustered/grouped structure. In this case, we sample entire clusters of observations, with replacement, from the original set of clusters. The \textit{moving blocks bootstrap} is applicable in the case of spatially or temporally structured errors. In this variant of the pairs bootstrap, we resample spatially or temporally adjacent blocks of observations together to preserve their joint correlation structure.
+
+\subsection{Robust hypothesis testing} \label{sec:robust-tests}
+
+In principle, any of the robust standard error constructions from Section~\ref{sec:robust-standard-errors} can be used to construct robust hypothesis tests. In this section, we will discuss a separate set of robust methodologies designed specifically for hypothesis testing. These fall roughly into two main categories: permutation tests (Section~\ref{sec:permutation-tests}) and bootstrap-based tests (Section~\ref{sec:bootstrap-tests})). There is a third category of tests based on ranks (e.g. the Wilcoxon test), which we will not discuss in this class.
+
+\subsubsection{Permutation tests} \label{sec:permutation-tests}
+
+\paragraph{Independence testing.}
+
+Permutation tests are an easy way of testing the null hypothesis of independence between two random variables (or vectors). For our purposes, suppose that $(\bm x_{i*}, y_i)$ are drawn i.i.d. from some joint distribution $F$ (as opposed to the usual assumption that $\bm X$ is fixed). Then, consider the null hypothesis
+\begin{equation}
+H_0: \bm x \perp\!\!\!\perp y.
+\label{eq:independence}
+\end{equation}
+This null hypothesis is related to the null hypothesis $H_0: \bm \beta_{\text{-}0} = 0$ in a linear regression, as formalized by the following lemma.
+\begin{lemma}
+Suppose $\bm x \in \mathbb R^{p-1}$ has a nondegenerate distribution $F_{\bm x}$ in the sense that there does not exist a vector $c \in \mathbb R^{p-1}$ such that $\bm c^T \bm x$ is deterministic. Suppose also that $F_{y|\bm x}$ is a distribution such that $\mathbb E[y|\bm x] = \beta_0 + \bm x^T\bm \beta_{\text{-}0}$ and that the distribution $F_{y|\bm x}$ is specified by its mean. Then,
+\begin{equation}
+\bm x \perp\!\!\!\perp y \quad \Longleftrightarrow \quad \bm \beta_{\text{-}0} = \bm 0.
+\end{equation}
+\end{lemma}
+\begin{proof}
+If $\bm \beta_{\text{-}0} = \bm 0$, then $\mathbb E[y|\bm x] = \beta_0$. Therefore, the mean of $y$ does not depend on $\bm x$. By the assumption on $F_{y|\bm x}$, it follows that the entire distribution $F_{y|\bm x}$ does not depend on $\bm x$, i.e. $y \perp\!\!\!\perp \bm x$. If $\bm \beta_{\text{-}0} \neq \bm 0$, then $\mathbb E[y|\bm x] = \beta_0 + \bm x^T\bm \beta_{\text{-}0}$, which by assumption is non-constant. Since $\mathbb E[y|\bm x]$ depends on $\bm x$, it follows that $y$ is not independent of $\bm x$.
+\end{proof}
+
+Therefore, any valid independence test automatically gives a non-normality-robust and heteroskedasticity-robust test of $H_0: \bm \beta_{\text{-}0} = \bm 0$ in a linear regression.
+
+\paragraph{The permutation test.}
+
+Now, suppose we have $n$ i.i.d. samples $(\bm x_{i*}, y_i)$ from $F$. Under the independence null hypothesis~\eqref{eq:independence}, the distribution of the data is unchanged if we permute the response variables $y_i$. Formally, let $\bm y_{()}$ be the order statistics of the response variable, let $S_n$ be the permutation group on $\{1, \dots, n\}$, and let $\bm y_\tau$ denote the permutation of $\bm y$ by $\tau \in S_n$. Then,
+\begin{equation}
+\bm y | \bm X, \bm y_{()} \sim \frac{1}{n!}\sum_{\tau \in S_n} \delta(\bm y_{\tau}).
+\end{equation}
+Now, let $T(\bm X, \bm y)$ be any test statistic measuring the association between $\bm y$ and $\bm X$, e.g. a linear regression $F$-statistic. Then, the above distributional result implies that
+\begin{equation}
+T(\bm X, \bm y) | \bm X, \bm y_{()} \sim \frac{1}{n!}\sum_{\tau \in S_n} \delta(T(\bm X, \bm y_{\tau})).
+\end{equation}
+Hence, we can compute the null distribution of $T$ by repeatedly permuting the response $\bm y$ and recomputing $T(\bm X, \bm y_{\tau})$. This gives rise to the permutation $p$-value
+\begin{equation}
+p^{\text{perm}} \equiv \frac{1}{n!}\sum_{\tau \in S_n} \mathbbm 1(T(\bm X, \bm y_{\tau}) \geq T(\bm X, \bm y)).
+\end{equation}
+The uniform distribution of $T(\bm X, \bm y) | \bm X, \bm y_{()}$ implies that
+\begin{equation}
+\mathbb P[p^{\text{perm}} \leq t | \bm X, \bm y_{()}] \leq t \quad \Longrightarrow \quad \mathbb P[p^{\text{perm}} \leq t] = \mathbb E[\mathbb P[p^{\text{perm}} \leq t | \bm X, \bm y_{()}]] \leq t \quad \text{for all } t \in [0,1]..
+\end{equation}
+In practice, $p^{\text{perm}}$ is approximated by independently sampling $B$ permutations $\tau_1, \dots, \tau_B$ from the uniform distribution over $S_n$. Letting $\tau_0$ be the identity permutation, it follows that
+\begin{equation}
+\bm y | \bm X, \bm y \in \{\bm y_{\tau_0}, \dots, \bm y_{\tau_B}\} \sim \frac{1}{B+1}\sum_{b = 0}^B \delta(\bm y_{\tau_b}).
+\end{equation}
+Similar logic as above leads to the approximate permutation $p$-value
+\begin{equation}
+\widehat p^{\text{perm}} \equiv \frac{1}{B+1}\sum_{b = 0}^B \mathbbm 1(T(\bm X, \bm y_{\tau_b}) \geq T(\bm X, \bm y)) = \frac{1}{B+1}\left(1 + \sum_{b = 1}^B \mathbbm 1(T(\bm X, \bm y_{\tau_b}) \geq T(\bm X, \bm y))\right).
+\label{eq:p-perm-hat}
+\end{equation}
+Although $\widehat p^{\text{perm}}$ can be viewed as an approximation to $\bm p^{\text{perm}}$, it is also stochastically larger than the uniform distribution in finite samples:
+\begin{equation}
+\mathbb P[\widehat p^{\text{perm}} \leq t] \leq t \quad \text{for all } t \in [0,1].
+\label{eq:permutation-pvalue-validity}
+\end{equation}
+Warning: A common mistake is to omit the ``1+'' in the numerator and denominator of the definition~\eqref{eq:p-perm-hat}. The resulting $p$-value is \textit{not valid} in the sense of equation~\eqref{eq:permutation-pvalue-validity}.
+
+\paragraph{Example.}
+
+A common application of the permutation test is testing for equality of distributions in the two-sample problem, where the permutation test amounts to generating a null distribution for any test statistic (e.g. a difference in means) by pooling together the two samples and randomly reassigning the classes of the samples.
+
+\paragraph{Strengths and weaknesses.}
+
+The strength of the permutation test is that it is valid under almost no assumptions on the data-generating process. Its main weakness is that it is not applicable to the hypothesis $H_0: \beta_S = 0$ for any group of predictors $S \neq \{1, \dots, p-1\}$. Intuitively, this would require a fancy kind of permutation that breaks the association between $\bm y$ and $\bm X_{*, S}$ while preserving the association between $\bm X_{*, S}$ and $\bm X_{*, \text{-}S}$. This amounts to a test of \textit{conditional} independence, which requires more assumptions on the joint distribution $F_{\bm x, y}$ than an independence test. Another weakness of a permutation test is that it is computationally expensive, although in the 21st century this is not a huge issue.
+
+\subsubsection{Bootstrap-based tests} \label{sec:bootstrap-tests}
+
+While the bootstrap is commonly associated with the construction of standard errors, it can also be used directly for hypothesis testing. Suppose we wish to test the linear regression null hypothesis $H_0: \bm \beta_S = \bm 0$ for some $S \subseteq \{1, \dots, p-1\}$ (which recall we cannot do using a permutation test). We compute some test statistic $T(\bm X, \bm y)$ measuring the significance of $\bm \beta_S$ (e.g. an $F$-statistic but it could be anything else). Then, we can use a variant of the residual bootstrap. We fit the least squares estimate $\bm{\widehat \beta}$ as usual and extract the residuals $\widehat \epsilon_i \equiv y_i - \bm x_{i*}^T \bm{\widehat \beta}$ and their empirical distribution $\widehat F$. Then, placing ourselves under the null hypothesis, we generate new samples $\bm y^b$ from the null distribution analogously to the usual residual bootstrap~\eqref{eq:residual_bootstrap}:
+\begin{equation}
+y_i^b = \bm x_{i,\text{-}S}^T \bm{\widehat \beta}_{\text{-}S} + \epsilon_i^b, \quad \epsilon_i^b \overset{\text{i.i.d.}}\sim \widehat F \quad \text{for } b = 1, \dots, B.
+\end{equation}
+We can then build a null distribution by recomputing $T(\bm X, \bm y^b)$ for each $b$ and then define the bootstrap-based $p$-value
+\begin{equation}
+p^{\text{boot}} \equiv \frac{1}{B+1}\left(1+\sum_{b = 1}^B \mathbbm 1(T(\bm X, \bm y^b) \geq T(\bm X, \bm y))\right).
+\end{equation}
+
+This bootstrap-based hypothesis test is not as robust as a permutation test or a heteroskedasticity-robust standard error, since the residual bootstrap implicitly assumes homoskedasticity. However, compared to parametric linear model inference, this bootstrap test affords the additional flexibility of using \textit{any} test statistic $T$ (including one based on, say, machine learning). Note that, while the pairs bootstrap is more robust than the residual bootstrap, the pairs bootstrap does not allow one to create samples under the null distribution and therefore cannot be used for hypothesis testing.
+
+\section{R demo} \label{sec:R-demo-misspecification}
+
+Let's take a look at the crime data from HW2:
+<<message=FALSE>>=
+# read crime data
+crime_data = read_tsv("../data/Statewide_crime.dat")
+
+# read and transform population data
+population_data = read_csv("../data/state-populations.csv")
+population_data = population_data %>%
+  filter(State != "Puerto Rico") %>%
+  select(State, Pop) %>%
+  rename(state_name = State, state_pop = Pop)
+
+# collate state abbreviations
+state_abbreviations = tibble(state_name = state.name,
+                             state_abbrev = state.abb) %>%
+  add_row(state_name = "District of Columbia", state_abbrev = "DC")
+
+# add CrimeRate to crime_data
+crime_data = crime_data %>%
+  mutate(STATE = ifelse(STATE == "IO", "IA", STATE)) %>%
+  rename(state_abbrev = STATE) %>%
+  left_join(state_abbreviations, by = "state_abbrev") %>%
+  left_join(population_data, by = "state_name") %>%
+  mutate(CrimeRate = Violent/state_pop) %>%
+  select(state_abbrev, CrimeRate, Metro, HighSchool, Poverty)
+
+crime_data
+@
+
+Let's fit the linear regression:
+<<>>=
+# note: we make the state abbreviations row names for better diagnostic plots
+lm_fit = lm(CrimeRate ~ Metro + HighSchool + Poverty,
+            data = crime_data %>% column_to_rownames(var = "state_abbrev"))
+@
+
+We can get the standard linear regression diagnostic plots as follows:
+<<out.width="75%", fig.align='center'>>=
+# residuals versus fitted
+plot(lm_fit, which = 1)
+
+# residual QQ plotxw
+plot(lm_fit, which = 2)
+
+# residuals versus leverage (with Cook's distance)
+plot(lm_fit, which = 5)
+@
+
+The information underlying these diagnostic plots can be extracted as follows:
+<<>>=
+tibble(state = crime_data$state_abbrev,
+       std_residual = rstandard(lm_fit),
+       fitted_value = fitted.values(lm_fit),
+       leverage = hatvalues(lm_fit),
+       cooks_dist = cooks.distance(lm_fit))
+@
+
+Clearly DC is an outlier. We can either run a robust estimation procedure or we can redo the analysis without DC. Let's try both. First, we try robust regression using \verb|MASS::rlm|:
+<<>>=
+rlm_fit = MASS::rlm(CrimeRate ~ Metro + HighSchool + Poverty, data = crime_data)
+summary(rlm_fit)
+@
+For some reason, the p-values are not computed automatically. We can compute them ourselves instead:
+<<>>=
+summary(rlm_fit)$coef %>%
+  as.data.frame() %>%
+  rename(Estimate = Value) %>%
+  mutate(`p value` = 2*dnorm(-abs(`t value`)))
+@
+To see the robust estimation action visually, let's consider a univariate example:
+<<out.width="75%", fig.width = 6, fig.height = 4, fig.align='center'>>=
+# usual and robust univariate fits
+lm_fit = lm(CrimeRate ~ Metro, data = crime_data)
+rlm_fit = MASS::rlm(CrimeRate ~ Metro, data = crime_data)
+
+# collate the fits into a tibble
+line_fits = tibble(method = c("Usual", "Robust"),
+                   intercept = c(coef(lm_fit)["(Intercept)"],
+                                 coef(rlm_fit)["(Intercept)"]),
+                   slope = c(coef(lm_fit)["Metro"],
+                                 coef(rlm_fit)["Metro"]))
+
+# plot the fits
+ggplot() +
+  geom_point(aes(x = Metro, y = CrimeRate), data = crime_data) +
+  geom_abline(aes(intercept = intercept, slope = slope, colour = method),
+              data = line_fits) +
+  theme_bw()
+@
+
+Next, let's try removing DC and running a usual linear regression.
+<<out.width="75%", fig.align='center'>>=
+lm_fit_no_dc = lm(CrimeRate ~ Metro + HighSchool + Poverty,
+            data = crime_data %>%
+              filter(state_abbrev != "DC") %>%
+              column_to_rownames(var = "state_abbrev"))
+
+# residuals versus fitted
+plot(lm_fit_no_dc, which = 1)
+
+# residual QQ plot
+plot(lm_fit_no_dc, which = 2)
+
+# residuals versus leverage (with Cook's distance)
+plot(lm_fit_no_dc, which = 5)
+@
+
+Next let's look at another dataset, from the Current Population Survey (CPS).
+<<>>=
+cps_data = read_tsv("../data/cps2.tsv")
+cps_data
+@
+
+Suppose we want to regress \verb|wage| on \verb|educ|, \verb|exper|, and \verb|metro|. Let's take a look at the diagnostic plots.
+<<out.width="75%", fig.align='center'>>=
+lm_fit = lm(wage ~ educ + exper + metro, data = cps_data)
+
+# residuals versus fitted
+plot(lm_fit, which = 1)
+
+# residual QQ plot
+plot(lm_fit, which = 2)
+
+# residuals versus leverage (with Cook's distance)
+plot(lm_fit, which = 5)
+@
+
+The residuals versus fitted plot suggests significant heteroskedasticity, with variance growing as a function of the fitted value. To get standard errors robust to this heteroskedasticity, we can use one of the robust estimators discussed in Section~\ref{sec:robust-standard-errors}. Most of the robust standard error constructions discussed in that section are implemented in the R package \verb|sandwich|.
+<<>>=
+library(sandwich)
+@
+For example, Huber-White's heteroskedasticity-consistent estimate $\widehat{\text{Var}}[\bm{\widehat \beta}]$ can be obtain via \verb|vcovHC|:
+<<>>=
+HW_cov = vcovHC(lm_fit)
+HW_cov
+@
+Compare this to the traditional estimate:
+<<>>=
+usual_cov = vcovHC(lm_fit, type = "const")
+usual_cov
+
+# extract the variance estimates from the diagonal
+tibble(variable = rownames(usual_cov),
+       usual_variance = sqrt(diag(usual_cov)),
+       HW_variance = sqrt(diag(HW_cov)))
+@
+
+Bootstrap standard errors are also implemented in \verb|sandwich|:
+<<>>=
+# pairs bootstrap
+bootstrap_cov = vcovBS(lm_fit, type = "xy")
+tibble(variable = rownames(usual_cov),
+       usual_variance = diag(usual_cov),
+       HW_variance = diag(HW_cov),
+       boostrap_variance = diag(bootstrap_cov))
+@
+
+Note that the bootstrap standard errors are closer to the HW ones than the standard ones.
+
+Other kinds of robust standard errors are implemented in \verb|sandwich|, like clustered standard errors (via \verb|vcovCL|) and many others we have not discussed.
+
+The covariance estimate produced by \verb|sandwich| can be easily integrated into linear model inference using the package \verb|lmtest|.
+<<>>=
+library(lmtest)
+
+# fit linear model as usual
+lm_fit = lm(wage ~ educ + exper + metro, data = cps_data)
+
+# robust t-tests for coefficients
+coeftest(lm_fit, vcov. = vcovHC)
+
+# robust confidence intervals for coefficients
+coefci(lm_fit, vcov. = vcovHC)
+
+# robust F-test
+lm_fit_partial = lm(wage ~ educ, data = cps_data) # a partial model
+waldtest(lm_fit_partial, lm_fit, vcov = vcovHC)
+
+# for permutation tests, check out the `coin` package
+@
+
+\chapter{Generalized linear models: General theory}
+
+Chapters 1-3 focused on the most common class of models used in applications: linear models. Despite their versatility, linear models do not apply in all situations. In particular, they are not designed to deal with binary or count responses. In Chapter 4, we introduce \textit{generalized linear models} (GLMs), a generalization of linear models that encompasses a wide variety of incredibly useful models including logistic regression and Poisson regression.
+
+We'll start Chapter 4 by introducing exponential family models (Section~\ref{sec:exp-fam}), a generalization of the Gaussian distribution that serves as the backbone of GLMs. Then we formally define a GLM, demonstrating logistic regression and Poisson regression as special cases (Section~\ref{sec:glm-def}). Next we discuss maximum likelihood inference in GLMs (Section~\ref{sec:glm-max-lik}). Finally, we discuss how to carry out statistical inference in GLMs (Section~\ref{sec:glm-inf}).
+
+\section{Exponential family distributions} \label{sec:exp-fam}
+
+\paragraph{Definition and examples.} Let's start with the Gaussian distribution, taking variance $\sigma^2 = 1$ for simplicity. If $y \sim N(\mu, 1)$, then it has density
+\begin{equation}
+f(y) = \frac{1}{\sqrt{2\mu}}\exp\left(-\frac{1}{2}(y-\mu)^2\right) = \exp\left(\mu y - \frac{1}{2}\mu^2\right) \cdot \frac{1}{\sqrt{2\mu}}\exp\left(-\frac12 y^2\right).
+\end{equation}
+Here is a way of generalizing this density:
+\begin{equation}
+f_\theta(y) = \exp(\theta y - \psi(\theta))h(y).
+\end{equation}
+Here $\theta$ is called the \textit{natural parameter}, $\psi$ is called the \textit{log-partition function}, and $h$ is called the \textit{base measure}. The distribution with density $f_\theta$ is called a \textit{one-parameter natural exponential family}. Therefore, $y \sim N(\mu, 1)$ is in the exponential family with
+\begin{equation}
+\theta = \mu, \quad \psi(\theta) = -\frac 12 \theta^2, \quad h(y) = \frac{1}{\sqrt{2\mu}}\exp\left(-\frac12 y^2\right).
+\end{equation}
+Several other well-known distributions are in the exponential family as well. For example, consider $y \sim \text{Ber}(\mu)$. Then, we have
+\begin{equation}
+f(y) = \mu^{y}(1-\mu)^{1-y} = \exp\left(y \log \frac{\mu}{1-\mu} + \log(1-\mu) \right).
+\end{equation}
+Therefore, we have $\theta = \log \frac{\mu}{1-\mu}$, so that $\log(1-\mu) = -\log(1+e^\theta)$. It follows that
+\begin{equation}
+\theta = \log \frac{\mu}{1-\mu}, \quad \psi(\theta) = \log(1+e^\theta), \quad h(y) = 1.
+\end{equation}
+As another example, consider the Poisson distribution $y \sim \text{Poi}(\mu)$. We have
+\begin{equation}
+f(y) = e^{-\mu}\frac{\mu^y}{y!} = \exp(y \log \mu - \mu)\frac{1}{y!}.
+\end{equation}
+Therefore, we have $\theta = \log \mu$, so that $\mu = e^\theta$. It follows that
+\begin{equation}
+\theta = \log \mu, \quad \psi(\theta) = e^\theta, \quad h(y) = \frac{1}{y!}.
+\end{equation}
+
+\paragraph{Moments of exponential family distributions.}
+
+It turns out that the derivatives of the log-partition function $\psi$ give the moments of $y$. Indeed, let's start with the relationship
+\begin{equation}
+\int f_\theta(y)dy = \int \exp(\theta y - \psi(\theta))h(y) dy = 1.
+\end{equation}
+Differentiating in $\theta$ and interchanging the derivative and the integral, we obtain
+\begin{equation}
+0 = \frac{d}{d\theta} \int f_\theta(y)dy = \int (y - \dot \psi(\theta))f_\theta(y) dy,
+\end{equation}
+from which it follows that
+\begin{equation}
+\dot \psi(\theta) = \int \dot \psi(\theta)f_{\theta}(y)dy = \int y f_\theta(y)dy = \mathbb E_\theta[y] \equiv \mu_\theta.
+\label{eq:psi-dot}
+\end{equation}
+Thus, the first derivative of the log partition function is the mean of $y$. Differentiating again, we get
+\begin{equation}
+\ddot \psi(\theta) = \int y(y - \dot \psi(\theta))f_\theta(y) dy = \int y(y - \mu_\theta)f_\theta(y) dy = \int (y - \mu_\theta)^2f_\theta(y) dy = \text{Var}_\theta[y].
+\end{equation}
+Thus, the second derivative of the log-partition function is the variance of $y$.
+
+\paragraph{Relationship between mean and natural parameter.}
+
+The log-partition function $\psi$ induces a connection~\eqref{eq:psi-dot} between the natural parameter $\theta$ and the mean $\mu$. Because
+\begin{equation}
+\frac{d\mu}{d\theta} = \frac{d}{d\theta}\dot \psi(\theta) = \ddot \psi(\theta) = \text{Var}_\theta[y] > 0,
+\end{equation}
+it follows that $\mu$ is a strictly increasing function of $\theta$, so in particular the mapping between $\mu$ and $\theta$ is bijective. Therefore, we can think of equivalently parameterizing the distribution via $\mu$ or $\theta$. In the context of GLMs (see Section~\ref{sec:glm-def}), the mean-variance relationship is quantified in terms of the \textit{canonical link function} $g$, which maps the mean to the natural parameter:
+\begin{equation}
+\theta = \dot \psi^{-1}(\mu) \equiv g(\mu).
+\end{equation}
+
+\paragraph{Relationship between mean and variance.}
+
+Note that the mean of an exponential family distribution determines its variance (since it determines the natural parameter $\theta$). For example, a Poisson random variable with mean $\mu$ has variance $\mu$ and a Bernoulli random variable with mean $\mu$ has variance $\mu(1-\mu)$. The mean-variance relationship turns out to characterize the exponential family distribution, i.e. an exponential family distribution with mean equal to its variance is the Poisson distribution.
+
+\section{Generalized linear models and examples} \label{sec:glm-def}
+
+In this class, the focus is on building models that tie a vector of predictors $(\bm x_{i*})$ to a response $y_i$. For linear regression, the mean of $y$ was modeled as a linear combination of the predictors $\bm x_{i*}^T \bm \beta$: $\mu = \bm x_{i*}^T \bm \beta$. Typically, the ``right'' thing to do is to model the response linearly on the scale of the natural parameter $\theta$ rather than on the scale of the mean parameter $\mu$. It just happens for linear models (where the underlying distribution is Gaussian) that these two parameters coincide.
+
+\paragraph{Definition.} We define $\{(y_i, \bm x_{i*})\}_{i = 1}^n$ as following a generalized linear model based on the exponential family $f_\theta$ if
+\begin{equation}
+y_i \overset{\text{ind}}\sim f_{\theta_i}, \quad \theta_i = \bm x_{i*}^T \bm \beta.
+\label{eq:glm-def}
+\end{equation}
+GLMs are often written in terms of their link functions $g$, which relate the mean of $y$ to the linear predictor $\bm x_{i*}^T \bm \beta$. When modeling the natural parameter as a linear function in the predictors, as in the definition~\eqref{eq:glm-def}, we get a GLM with \textit{canonical link function} $g = \dot\psi^{-1}$:
+\begin{equation}
+g(\mathbb E[y_i]) = \dot \psi^{-1}(\mathbb E[y_i]) = \bm x_{i*}^T \bm \beta.
+\end{equation}
+
+\paragraph{Examples.} For example, \textit{logistic regression} is the GLM based on the Bernoulli distribution:
+\begin{equation}
+y_i \overset{\text{ind}}\sim \text{Ber}(\mu_i); \quad \theta_i = \log\frac{\mu_i}{1-\mu_i} = \bm x_{i*}^T \bm \beta.
+\end{equation}
+Thus the canonical link function for logistic regression is the \textit{logistic link function} $g(\mu) = \log \frac{\mu}{1-\mu}$. As another example, \textit{Poisson regression} is the GLM based on the Poisson distribution:
+\begin{equation}
+y_i \overset{\text{ind}}\sim \text{Poi}(\mu_i); \quad \theta_i = \log \mu_i = \bm x_{i*}^T \bm \beta.
+\end{equation}
+Thus the canonical link function for Poisson regression is the \textit{log link function} $g(\mu) = \log \mu$.
+
+\section{Maximum likelihood estimation in GLMs} \label{sec:glm-max-lik}
+
+\paragraph{GLM normal equations.}
+
+Recall that the least squares estimate $\bm{\widehat \beta}$ is also the maximum likelihood estimate. For general GLMs, we also estimate $\bm \beta$ via maximum likelihood. To derive this estimates, let's write down the GLM likelihood and then take a derivative. The GLM likelihood is
+\begin{equation}
+\mathcal L(\bm \beta) = \prod_{i = 1}^n f_{\theta_i}(y_i) = \prod_{i = 1}^n \exp(\theta_i y_i - \psi(\theta_i)) h(y_i).
+\end{equation}
+Taking a logarithm, we have
+\begin{equation}
+\log \mathcal L(\bm \beta) = \sum_{i = 1}^n (\theta_i y_i - \psi(\theta_i)) + \sum_{i = 1}^n \log h(y_i) = \sum_{i = 1}^n (\bm x_{i*}^T \bm \beta y_i - \psi(\bm x_{i*}^T \bm \beta)) + \sum_{i = 1}^n \log h(y_i).
+\label{eq:glm-log-likelihood}
+\end{equation}
+Taking a gradient in $\bm \beta$, we get
+\begin{equation}
+\nabla_{\bm \beta}\log \mathcal L(\bm \beta) = \sum_{i = 1}^n (\bm x_{i*} y_i - \bm x_{i*}\dot \psi(\bm x^T_{i*}\bm \beta)) = \bm X^T (\bm y - \bm \mu(\bm \beta)).
+\label{eq:log-likelihood-derivative}
+\end{equation}
+Setting this expression to zero, we get the normal equations:
+\begin{equation}
+\bm X^T(\bm y - \bm \mu(\bm{\widehat \beta})) = 0.
+\label{eq:glm-normal-equations}
+\end{equation}
+Recall that, for least squares, we got the same equation, with $\bm \mu(\bm{\widehat \beta}) = \bm X \bm{\widehat\beta}$. We can interpret the normal equations as stating that $\bm \mu(\bm{\widehat \beta})$ is a projection of $\bm y$ onto the model ``space''
+\begin{equation}
+C_\mu(\bm X) \equiv \{\bm \mu = \dot\psi(\bm \theta) = \dot \psi(\bm X \bm \beta): \bm \beta \in \mathbb R^p\}.
+\end{equation}
+parallel to the columns of $\bm X$. Note that the subscript $\mu$ on $C_\mu(\bm X)$ indicates that we are considering the ``space'' (actually, \textit{set}) of possible $\bm \mu$ as opposed to the space $C_\theta(\bm X)$ of possible $\bm \theta$, which we denoted in Chapter 1 simply as $C(\bm X)$. For linear models, it is the case that $C_\mu(\bm X) = C_\theta(\bm X)$, but in general, these two are different. Note that $C_\mu(\bm X)$ in general is a manifold as opposed to a linear subspace of $\mathbb R^n$, while $C_\theta(\bm X)$ is always a linear subspace.
+
+\paragraph{Log-concavity of GLM likelihood.} Unlike linear regression, in general GLMs the function $\bm \mu(\bm{\beta})$ is nonlinear. Therefore, there is in general no closed-form solution to the GLM normal equations~\eqref{eq:glm-normal-equations}. We must instead iteratively compute the maximum likelihood estimate $\bm{\widehat\beta}$. Before talking about the computation of the MLE $\bm{\widehat\beta}$, we state the important fact that $\log \mathcal L(\bm \beta)$ is a concave function of $\bm \beta$, which implies that this function is ``easy to optimize'', i.e. has no local maxima.
+
+\begin{proposition} \label{prop:log-concavity}
+The function $\log \mathcal L(\bm \beta)$ defined in~\eqref{eq:glm-log-likelihood} is concave in $\bm \beta$.
+\end{proposition}
+\begin{proof}
+We claim it suffices to show that $\psi$ is a convex function. Indeed, then $\log \mathcal L(\bm \beta)$ would be the sum of a linear function of $\bm \beta$ and the composition of a concave function with a linear function. To verify that $\psi$ is convex, it suffices to recall that $\ddot \psi(\theta) = \text{Var}_\theta[y] \geq 0$.
+\end{proof}
+\noindent Proposition~\eqref{prop:log-concavity} gives us confidence that an iterative algorithm will converge to the global maximum of the likelihood. We present such an iterative algorithm next.
+
+\paragraph{Newton-Raphson.}
+
+We can solve the equation~\eqref{eq:glm-normal-equations} using the Newton Raphson algorithm, which involves the gradient and Hessian of the function we'd like to maximize. We already computed the gradient in equation~\eqref{eq:log-likelihood-derivative}. To compute the Hessian, we take another gradient in $\bm \beta$. We have
+\begin{equation}
+\begin{split}
+\nabla^2_{\bm \beta} \log \mathcal L(\bm \beta) &= \nabla_{\bm \beta}(\bm X^T(\bm y - \dot \psi(\bm X \bm \beta))) = -\nabla_{\bm \beta} \bm X^T \dot \psi(\bm X \bm \beta) \\
+&\quad= - \bm X^T \text{diag}(\ddot \psi(\bm X\bm \beta))\bm X \equiv -\bm X^T \bm W(\bm \beta)\bm X.
+\end{split}
+\label{eq:hessian}
+\end{equation}
+Here, $\dot \psi$ and $\ddot \psi$ applied to vectors are interpreted element-wise and $\bm W(\bm \beta) \in \mathbb R^{n \times n}$ is the diagonal matrix such that
+\begin{equation}
+W_{ii}(\bm \beta) = \text{Var}_{\bm \beta}[y_i].
+\label{eq:W-def}
+\end{equation}
+The Newton-Raphson iteration is therefore
+\begin{equation}
+\bm{\widehat \beta}^{(t+1)} = \bm{\widehat \beta}^{(t)} - (\nabla^2_{\bm \beta} \log \mathcal L(\bm{\widehat \beta}^{(t)}))^{-1} \nabla_{\bm \beta} \log \mathcal L(\bm{\widehat \beta}^{(t)}) = \bm{\widehat \beta}^{(t)} + (\bm X^T \bm W(\bm{\widehat \beta}^{(t)})\bm X)^{-1}\bm X^T(\bm y - \bm \mu(\bm{\widehat \beta}^{(t)})).
+\label{eq:NR-iteration}
+\end{equation}
+
+\paragraph{Iteratively reweighted least squares (IRLS).}
+
+A nice interpretation of the Newton-Raphson algorithm is as a sequence of weighted least squares fits, known as the iteratively reweighted least squares (IRLS) algorithm. Suppose that we have a current estimate $\bm{\widehat \beta}^{(t)}$, and suppose we are looking for a vector $\bm \beta$ near $\bm{\widehat \beta}^{(t)}$ that fits the model even better. We have
+\begin{equation*}
+\mathbb E_{\bm \beta}[\bm y] = \dot \psi(\bm X \bm \beta) \approx \dot \psi(\bm X \bm{\widehat \beta}^{(t)}) + \text{diag}(\ddot \psi(\bm X \bm{\widehat \beta}^{(t)}))(\bm X \bm \beta - \bm X \bm{\widehat \beta}^{(t)}) = \bm \mu(\bm{\widehat \beta}^{(t)}) + \bm W(\bm{\widehat \beta}^{(t)})(\bm X \bm \beta - \bm X \bm{\widehat \beta}^{(t)}).
+\end{equation*}
+and
+\begin{equation*}
+\text{Var}_{\bm \beta}[\bm y] \approx \bm W(\bm{\widehat \beta}^{(t)}).
+\end{equation*}
+Thus, up to the first two moments, near $\bm \beta = \bm{\widehat \beta}^{(t)}$ the distribution of $\bm y$ is approximately
+\begin{equation}
+\bm y = \bm \mu(\bm{\widehat \beta}^{(t)}) + \bm W(\bm{\widehat \beta}^{(t)})(\bm X \bm \beta - \bm X \bm{\widehat \beta}^{(t)}) + \bm \epsilon, \quad \bm \epsilon \sim N(\bm 0, \bm W(\bm{\widehat \beta}^{(t)})),
+\end{equation}
+or, equivalently,
+\begin{equation}
+\bm z^{(t)} \equiv \bm W(\bm{\widehat \beta}^{(t)})^{-1}(\bm y - \bm \mu(\bm{\widehat \beta}^{(t)})) + \bm X \bm{\widehat \beta}^{(t)} = \bm X \bm \beta + \bm \epsilon', \quad \bm \epsilon' \sim N(\bm 0, \bm W(\bm{\widehat \beta}^{(t)})^{-1}).
+\end{equation}
+The regression of the \textit{adjusted response variable} $\bm z^{(t)}$ on $\bm X$ leaves us with a weighted linear regression, whose maximum likelihood estimate is
+\begin{equation}
+\bm{\widehat \beta}^{(t+1)} = (\bm X^T \bm W(\bm{\widehat \beta}^{(t)}) \bm X)^{-1} \bm X^T \bm W(\bm{\widehat \beta}^{(t)}) \bm z^{(t)},
+\label{eq:IRLS-iteration}
+\end{equation}
+which we define as our next iterate. It's easy to verify that the IRLS iteration~\eqref{eq:IRLS-iteration} is equivalent to the Newton-Raphson iteration~\eqref{eq:NR-iteration}.
+
+\paragraph{Deviance (definition).}
+
+Suppose that
+\begin{equation}
+y_i \overset{\text{ind}}\sim f_{\theta_i}
+\end{equation}
+for some vector $\bm \theta \in \mathbb R^n$. Then, the log likelihood, expressed as a function of $\bm \mu \in \mathbb R^n$, is
+\begin{equation}
+L(\bm y; \bm \mu) \equiv \sum_{i = 1}^n{\theta_i y_i - \psi(\theta_i)} + \sum_{i = 1}^n \log h(y_i) = \sum_{i = 1}^n {g(\mu_i)y_i - \psi(g(\mu_i))} + \sum_{i = 1}^n \log h(y_i).
+\end{equation}
+When we fit a GLM, we choose
+\begin{equation}
+\bm{\widehat \beta} = \underset{\bm \beta}{\arg \max}\ L(\bm y; \bm \mu(\bm \beta)) \quad \Longleftrightarrow \quad \bm{\widehat \mu} = \underset{\bm \mu \in C_\mu(\bm X)}{\arg \max}\ L(\bm y; \bm \mu).
+\end{equation}
+Thus a GLM can be viewed as a constrained optimization problem over $\bm{\mu} \in C_\mu(\bm X) \subset \mathbb R^n$. What if we were to maximize $L(\bm y; \bm \mu)$ over all $\bm \mu \in \mathbb R^d$? It is easy to see that the $\bm \mu$ we would obtain is $\bm \mu = \bm y$. This model is called the \textit{saturated model}. Inspired by this fact, we define the \textit{deviance} statistic
+\begin{equation}
+D(\bm y; \bm{\widehat \mu}) \equiv 2(L(\bm y; \bm y) - L(\bm y; \bm{\widehat \mu})) = 2\left(\max_{\bm \mu \in \mathbb R^d} L(\bm y; \bm \mu) - \max_{\bm \mu \in C_{\mu}(\bm X)}L(\bm y; \bm \mu)\right).
+\end{equation}
+We can view $D(\bm y; \bm{\widehat \mu}) \geq 0$ as a measure of the \textit{lack of fit} of a GLM. We could in principle define the deviance for any pair $(\bm y, \bm \mu)$ via
+\begin{equation}
+D(\bm y; \bm \mu) \equiv 2(L(\bm y; \bm y) - L(\bm y; \bm{\mu})) = 2\left(\sum_{i = 1}^n (g(y_i)-g(\mu_i))y_i - (\psi(g(y_i)) - \psi(g(\mu_i)))\right).
+\end{equation}
+Then, it is clear that maximizing the likelihood is equivalent to minimizing the deviance:
+\begin{equation}
+\bm {\widehat \mu} = \underset{\bm \mu \in C_\mu(\bm X)}{\arg \max}\ L(\bm y; \bm \mu) = \underset{\bm \mu \in C_\mu(\bm X)}{\arg \min}\ D(\bm y; \bm \mu).
+\end{equation}
+
+\paragraph{Deviance (examples).}
+
+Let's first compute the deviance for $\bm y \sim N(\bm \mu, \bm I)$. We have $L(\bm y, \bm \mu) = -\frac{1}{2}\|\bm y - \bm \mu\|^2 - \frac{n}{2}\log 2\mu$ and $L(\bm y, \bm y) = - \frac{n}{2}\log 2\mu$, so
+\begin{equation}
+D(\bm y; \bm \mu) = \|\bm y - \bm \mu\|^2,
+\end{equation}
+which we recognize as the familiar residual sum of squares (RSS). Therefore, the deviance is a generalization of the RSS. Let's compute the deviance for a Poisson regression, where $\psi(\theta) = e^{\theta}$ and $g(\mu) = \log(\mu)$. We have
+\begin{equation}
+D(\bm y; \bm \mu) = 2\left(\sum_{i = 1}^n (g(y_i)-g(\mu_i))y_i - (\psi(g(y_i)) - \psi(g(\mu_i)))\right) = 2\left(\sum_{i = 1}^n y_i \log \frac{y_i}{\mu_i} - (y_i - \mu_i)\right).
+\end{equation}
+Now, if $\bm{\widehat \mu}$ is the maximum likelihood mean vector for a Poisson regression including an intercept, the normal equations tell us that $\bm 1^T(\bm y - \bm{\widehat \mu}) = 0$, so
+\begin{equation}
+D(\bm y; \bm{\widehat\mu}) = 2\sum_{i = 1}^n y_i \log \frac{y_i}{\widehat \mu_i}.
+\end{equation}
+This is the lack-of-fit measure that a Poisson regression seeks to minimize.
+
+\section{Inference in GLMs} \label{sec:glm-inf}
+
+\paragraph{Inferential goals.} There are two types of inferential goals: hypothesis testing and confidence interval construction. Within hypothesis testing, we can test $H_0: \beta_j = 0$ (importance of a single coefficient), $H_0: \bm \beta_S = \bm 0$ for some $S \subset \{0,\dots,p-1\}$ (importance of a group of coefficients), or $H_0: \bm \theta = \bm X \bm \beta$ (goodness of fit). Within confidence intervals, we may want to construct intervals for the coefficients $\beta_j$ or for fitted values $\theta_i$ or $\mu_i$.
+
+\paragraph{Inferential tools.}
+
+Inference in GLMs is based on asymptotic likelihood theory. Hypothesis tests (and, by inversion, confidence intervals) can be constructed in three asymptotically equivalent ways: Wald tests, likelihood ratio tests (LRT), and score tests. Despite their asymptotic equivalence, in finite samples some tests may be preferable to others. We will discuss the most commonly applied methods for each inferential task, though others are possible as well.
+
+\subsection{Wald tests and confidence intervals}
+
+\paragraph{Asymptotic normality and Wald standard errors.}
+Wald tests and confidence intervals are based on the large-sample distribution of the MLE, with covariance matrix equal to the Fisher information. Using the Hessian computation~\eqref{eq:hessian}, we can compute the Fisher information matrix
+\begin{equation}
+\bm I(\bm \beta) = -\mathbb E_{\bm \beta}[\nabla^2_{\bm \beta}\log \mathcal L(\bm \beta)] = \bm X^T \bm W(\bm \beta) \bm X,
+\end{equation}
+recalling the definition of $\bm W$ in equation~\eqref{eq:W-def}. Therefore, likelihood theory tells us that, as the sample size $n$ grows, we have
+\begin{equation}
+\bm{\widehat \beta} \overset \cdot \sim N(\bm \beta, (\bm X^T \bm W(\bm \beta) \bm X)^{-1}).
+\end{equation}
+Using the plug-in variance estimate, we can construct Wald standard errors based on
+\begin{equation}
+\widehat{\text{Var}}[\bm{\widehat \beta}] \equiv (\bm X^T \bm W(\bm{\widehat \beta}) \bm X)^{-1}.
+\end{equation}
+
+\paragraph{Wald confidence intervals.}
+
+A Wald confidence interval for each coordinate $\beta_j$ can be obtained via
+\begin{equation}
+\text{CI}(\widehat \beta_j) \equiv \widehat \beta_j \pm 2 \cdot \text{SE}(\widehat \beta_j), \quad \text{where} \quad \text{SE}(\widehat \beta_j) \equiv \sqrt{(\bm X^T \bm W(\bm{\widehat \beta}) \bm X)^{-1}_{jj}}.
+\label{eq:conf-int-beta}
+\end{equation}
+A confidence interval for $\theta_i = \bm x_{i*}^T \bm \beta$ can be obtained via
+\begin{equation}
+\text{CI}(\widehat \theta_i) \equiv \bm x_{i*}^T \bm{\widehat\beta} \pm 2 \cdot \text{SE}(\theta_i), \quad \text{where} \quad \text{SE}(\widehat \theta_i) \equiv \sqrt{\bm x_{i*}^T(\bm X^T \bm W(\bm{\widehat \beta}) \bm X)^{-1}\bm x_{i*}}.
+\end{equation}
+A confidence interval for $\mu_i \equiv \mathbb E_{\bm \beta}[y_i] = \dot \psi(\theta_i)$ can be obtained by applying the strictly increasing function $\dot \psi$ to the endpoints of the confidence interval for $\theta_i$. Note that the resulting confidence interval may be asymmetric.
+
+\paragraph{Wald test for a single coefficient.}
+
+We can invert the confidence interval~\eqref{eq:conf-int-beta} to get a test of the hypothesis $H_0: \beta_j = \beta_j^0$ for any $\beta_j^0 \in \mathbb R$:
+\begin{equation}
+\phi(\bm X, \bm y) = \mathbbm 1(|z(\bm X, \bm y)| > z_{1-\alpha/2}), \quad \text{where} \quad z(\bm X, \bm y) \equiv \frac{\widehat \beta_j-\beta_j^0}{\text{SE}(\widehat \beta_j)}.
+\end{equation}
+This is the analog of the $t$-test for a linear regression.
+
+\subsection{Likelihood ratio tests and confidence intervals}
+
+\paragraph{Testing one or more coefficients.}
+
+Suppose that $S \subset \{0, 1, \dots, p-1\}$ and we wish to test the null hypothesis $H_0: \bm \beta_S = \bm 0$. For linear regression, we used an $F$-test for this purpose. In Homework 2, we saw that an $F$-test is related to a likelihood ratio test. The likelihood ratio test can be defined for arbitrary GLMs, and is usually how we test multiple coordinates. To define the likelihood ratio test, let $\bm{\widehat\mu}_{\text{-}S} \in \mathcal R^n$ the maximum likelihood mean vector under the null hypothesis, and let $\bm{\widehat \mu}$ denote the maximum likelihood mean vector without restrictions on $\bm \beta$. Then, the likelihood ratio test statistic is
+\begin{equation}
+T^{\text{LRT}} \equiv 2(L(\bm y; \bm{\widehat\mu})-L(\bm y; \bm{\widehat\mu}_{\text{-}S})),
+\end{equation}
+and
+\begin{equation}
+\text{under } H_0, \quad T^{\text{LRT}} \overset d \rightarrow \chi^2_{|S|}.
+\end{equation}
+Note that the LRT test statistic can also be expressed as a difference in deviances:
+\begin{equation}
+T^{\text{LRT}} = D(\bm y; \bm{\widehat \mu}_{\text{-}S}) - D(\bm y; \bm{\widehat \mu}).
+\end{equation}
+We see the connection with the $F$-test, whose numerator is the difference in the RSSs of the partial and full models.
+
+\paragraph{LRT-based confidence intervals.}
+
+Sometimes, Wald confidence intervals do not work very well in finite samples, e.g. if $\bm{\widehat \beta} \rightarrow \infty$. In these cases, the LRT can be inverted to get more reliable confidence intervals, though this is less straightforward conceptually and computationally.
+
+\paragraph{Goodness of fit tests.}
+
+In some cases, we want to compare a GLM model to a \textit{saturated model}. In this case, we can use a likelihood ratio test similar to that applied to test multiple coefficients. It turns out that $D(\bm y; \bm{\widehat \mu})$ is exactly the likelihood ratio statistic we want. Under \textit{small dispersion asymptotics}, we can expect it to have a $\chi^2_{n-p}$ distribution under the null.
+
+\subsection{Score tests} \label{sec:score-tests-1}
+
+\paragraph{Goodness of fit tests.}
+
+Score tests are primarily used as alternatives to likelihood ratio tests for testing goodness of fit in GLMs. Score tests are based on the fact that
+\begin{equation}
+\text{under } H_0, \quad \nabla_{\theta}\log \mathcal L(\bm{\widehat\theta_0})I^{-1}(\bm{\widehat\theta_0})\nabla_{\theta}\log \mathcal L(\bm{\widehat \theta_0}) \rightarrow \chi^2_{n-p},
+\end{equation}
+where $\bm{\widehat \theta_0}$ is the maximum likelihood estimate under the null hypothesis. For GLMs, note that
+\begin{equation}
+\nabla_{\theta}\log \mathcal L(\bm \theta) = \bm y - \bm \mu_{\bm \theta} \quad \text{and} \quad I(\bm \theta) = \text{diag}(\ddot \psi(\bm \theta)).
+\end{equation}
+Therefore, we arrive at the statistic
+\begin{equation}
+X^2 \equiv \nabla_{\theta}\log \mathcal L(\bm X \bm{\widehat \beta})I^{-1}(\bm X \bm{\widehat \beta})\nabla_{\theta}\log \mathcal L(\bm X \bm{\widehat \beta}) = (\bm y - \bm{\widehat \mu})^T \bm W^{-1} (\bm y - \bm{\widehat \mu}) = \sum_{i = 1}^n \frac{(y_i - \widehat \mu_i)^2}{\text{var}(\widehat \mu_i)}.
+\end{equation}
+This is Pearson's famous chi-squared statistic, which he proposed in 1900. It was only pointed out that this is a score test many decades later.
+
+
+\section{Further generalizations}
+
+The definitions and theory of GLMs introduced in the previous sections were simplified in several ways for the sake of exposition. Here we discuss a more general definition of GLMs that accounts for (1) a dispersion parameter, (2) offsets, and (3) non-canonical links. These elements will be introduced below.
+
+\subsection{Exponential dispersion models (EDMs)}
+
+\paragraph{Definition.}
+
+An EDM is a generalization of exponential family models that includes a \textit{dispersion parameter}. An EDM $f_{\theta, \phi}$ is parameterized by a natural parameter $\theta \in \mathbb R$ and a dispersion parameter $\phi > 0$:
+\begin{equation}
+f_{\theta, \phi}(y) = \exp\left(\frac{\theta y - \psi(\theta)}{\phi}\right)h(y, \phi).
+\end{equation}
+Sometimes, we parameterize this distribution using its mean and dispersion, writing
+\begin{equation}
+y \sim \text{EDM}(\mu, \phi).
+\end{equation}
+
+\paragraph{Examples.}
+
+For example, the distribution $N(\mu, \sigma^2)$ falls into this class:
+\begin{equation}
+f(y) = \frac{1}{\sqrt{2\mu\sigma^2}}\exp\left(-\frac{1}{2\sigma^2}(y - \mu)^2\right) = \exp\left(\frac{\mu y - \frac{1}{2}\mu^2}{\sigma^2}\right)\cdot \frac{1}{\sqrt{2\mu\sigma^2}}\exp\left(-\frac{1}{2\sigma^2}y^2\right).
+\end{equation}
+Therefore, we have
+\begin{equation}
+\theta = \mu; \quad \psi(\theta) = \frac{1}{2}\theta^2; \quad \phi = \sigma^2; \quad h(y, \phi) = \frac{1}{\sqrt{2\mu\sigma^2}}\exp\left(-\frac{1}{2\sigma^2}y^2\right).
+\end{equation}
+The Bernoulli and Poisson distributions are special cases with $\phi = 1$, and $\theta$ and $\psi(\theta)$ as derived before. Binomial proportions $y$ such that $my \sim \text{Bin}(m, \mu)$ also have EDM distributions:
+\begin{equation}
+f(y) = {m \choose my}\mu^{my}(1-\mu)^{m(1-y)} = \exp\left(m\left(y \log \frac{\mu}{1-\mu} + \log(1-\mu)\right)\right){m \choose my},
+\end{equation}
+so
+\begin{equation}
+\theta = \log\frac{\mu}{1-\mu}; \quad \psi(\theta) = \frac{e^{\theta}}{1 + e^{\theta}}; \quad \phi = 1/m; \quad h(y, \phi) = {m \choose my}.
+\end{equation}
+Many other examples fall into this class, including the negative binomial, gamma, and inverse-Gaussian distributions.
+
+\paragraph{Mean and variance.}
+
+We can employ similar tricks as before to derive the mean and variance of an EDM:
+\begin{equation}
+\mu = \mathbb E_\theta[y] = \dot \psi(\theta); \quad \text{Var}_{\theta}[y] = \phi \cdot \ddot \psi(\theta).
+\end{equation}
+There are the same relationships we found before, except the variance function has an extra factor of $\phi$.
+
+\subsection{GLMs based on EDMs}
+
+\paragraph{Definition.}
+
+We define a GLM based on an EDM as follows:
+\begin{equation}
+y_i \overset{\text{ind}} \sim \text{EDM}(\mu_i, \phi/w_i), \quad \eta_i \equiv g(\mu_i) = o_i + \bm x^T_{i*}\bm \beta.
+\end{equation}
+Here, $w_i$ are known \textit{observation weights}, $g$ is the \textit{link function}, $\eta_i$ is the \textit{linear predictor}, and $o_i$ are \textit{offsets} (known terms contributing additively to the linear predictor). The parameters $\bm \beta$ are unknown, and $\phi$ might or might not be known. For example, in Poisson regression $\phi$ is known to be 1 but in linear regression $\phi = \sigma^2$ is unknown. For example, consider logistic regression with \textit{grouped data}:
+\begin{equation}
+n_i y_i \sim \text{Bin}(n_i, \mu_i); \quad \eta_i = \log \frac{\mu_i}{1-\mu_i} = o_i + \bm x^T_{i*}\bm \beta.
+\end{equation}
+Here, $\phi = 1$ and $w_i = n_i$.
+
+\paragraph{Deviance.}
+
+The log-likelihood of a GLM is
+\begin{equation}
+\log \mathcal L(\bm \beta) = \sum_{i = 1}^n \frac{\theta_i y_i - \psi(\theta_i)}{\phi/w_i} + \sum_{i = 1}^n \log h(y_i, \phi/w_i).
+\end{equation}
+Expressing this in terms of $\bm \mu$, we have
+\begin{equation}
+L(\bm y; \bm \mu) = \sum_{i = 1}^n \frac{\dot \psi^{-1}(\mu_i) y_i - \psi(\dot \psi^{-1}(\mu_i))}{\phi/w_i} + \sum_{i = 1}^n \log h(y_i, \phi/w_i).
+\end{equation}
+We define the deviance $D(\bm y; \bm \mu)$ via
+\begin{equation}
+2(L(\bm y; \bm y)-L(\bm y; \bm \mu)) = \frac{1}{\phi}\sum_{i = 1}^n w_i\left((\dot \psi^{-1}(y_i)-\dot \psi^{-1}(\mu_i))y_i - (\psi(\dot \psi^{-1}(y_i)) - \psi(\dot \psi^{-1}(\mu_i)))\right) \equiv \frac{1}{\phi}D(\bm y; \bm \mu).
+\end{equation}
+
+\paragraph{Estimation of $\bm \beta$.}
+
+Taking a gradient in $\bm \beta$ using the chain rule, we obtain:
+\begin{equation}
+\frac{\partial \log \mathcal L(\bm \beta)}{\partial \bm \beta} = \frac{\partial \log \mathcal L(\bm \beta)}{\partial \bm \theta}\frac{\partial \bm \theta}{\partial \bm \mu} \frac{\partial \bm \mu}{\partial \bm \eta}\frac{\partial \bm \eta}{\partial \bm \beta} =  (\bm y - \bm \mu)^T \text{diag}(\phi/w_i)^{-1} \cdot \text{diag}(\ddot \psi(\theta_i))^{-1} \cdot \text{diag}\left(\frac{\partial\mu_i}{\partial \eta_i}\right) \cdot \bm X.
+\end{equation}
+Transposing and setting to zero, we get the normal equations
+\begin{equation}
+0 = \left(\frac{\partial \log \mathcal L(\bm \beta)}{\partial \bm \beta}\right)^T = \bm X^T \text{diag}\left(\frac{\partial\mu_i}{\partial \eta_i}\right) \text{diag}\left(\frac{\phi}{w_i}\ddot \psi( \theta_i)\right)^{-1} (\bm y - \bm \mu) \equiv \bm X^T \bm D \bm V^{-1}(\bm y - \bm \mu).
+\end{equation}
+Here, $\bm D = \text{diag}(\partial\mu_i/\partial \eta_i)$ and $\bm V = \text{diag}\left(\frac{\phi}{w_i}\ddot \psi(\bm \theta)\right) = \text{diag}(\text{Var}[y_i])$. We can solve these normal equations using a generalized version of iteratively reweighted least squares. Notably, the dispersion parameter $\phi$ cancels from the normal equations, so estimation of $\phi$ is not required to estimate $\bm \beta$.
+
+\paragraph{Estimation of $\phi$.}
+
+While sometimes the parameter $\phi$ is known (e.g. for binomial or Poisson GLMs), in other cases $\phi$ must be estimated (e.g. for the normal linear model). It turns out that we can generalize the linear model estimator $\widehat \sigma^2 = \frac{1}{n-p}\|\bm y - \bm{\widehat \mu}\|^2$ to
+\begin{equation}
+\widehat \phi = \frac{1}{n-p}D(\bm y; \bm{\widehat \mu}).
+\end{equation}
+This estimator performs decently well.
+
+\paragraph{Wald inference.} Let's first compute the Fisher information matrix:
+\begin{equation}
+\begin{split}
+\bm I(\bm \beta) &= \text{Var}\left[\left(\frac{\partial \log \mathcal L(\bm \beta)}{\partial \bm \beta}\right)^T\right] \\
+&= \text{Var}[\bm X^T \bm D \bm V^{-1}(\bm y - \bm \mu)] \\
+&= \bm X^T \bm D \bm V^{-1}\text{Var}[\bm y] \bm V^{-1} \bm D \bm X \\
+&= \bm X^T \bm D \bm V^{-1}\bm V \bm V^{-1} \bm D \bm X \\
+&= \bm X^T \bm D^2 \bm V^{-1} \bm X \\
+&\equiv \bm X^T \bm W \bm X.
+\end{split}
+\end{equation}
+Here,
+\begin{equation}
+\bm W = \text{diag}\left(\frac{(\partial \mu_i/\partial \eta_i)^2}{\text{Var}[y_i]}\right).
+\end{equation}
+Therefore, once again we have
+\begin{equation}
+\bm{\widehat \beta} \overset \cdot \sim N(\bm \beta, (\bm X^T\bm W \bm X)^{-1}).
+\end{equation}
+Using the plug-in principle (including plugging in an estimator of $\phi$ if this parameter is unknown), we define
+\begin{equation}
+\widehat{\text{Var}}[\bm{\widehat \beta}] \equiv (\bm X^T\bm{\widehat W} \bm X)^{-1},
+\end{equation}
+based on which we can conduct Wald tests and construct Wald  confidence intervals. If a plug-in estimate is used for $\phi$, then in small samples $t_{n-p}$ is a better approximation of the null distribution than $N(0,1)$.
+
+\paragraph{Likelihood ratio test inference.}
+
+Suppose we want to test $H_0: \bm \beta_{S} = \bm 0$. Then, asymptotic theory tells us that under the null,
+\begin{equation}
+2(L(y; \bm{\widehat \mu})-L(y; \bm{\widehat \mu}_{\text{-}S})) = \frac{D(\bm y; \bm{\widehat \mu}_{\text{-}S})-D(\bm y; \bm{\widehat \mu})}{\phi} \rightarrow \chi^2_{|S|}.
+\end{equation}
+If $\phi$ is known, then we can construct a chi-square test directly based on the above asymptotic null distribution. If $\phi$ is unknown, we can estimate it as discussed above, and construct an $F$-statistic as follows:
+\begin{equation}
+F \equiv \frac{(D(\bm y; \bm{\widehat \mu}_{\text{-}S})-D(\bm y; \bm{\widehat \mu}))/|S|}{\widehat \phi} = \frac{(D(\bm y; \bm{\widehat \mu}_{\text{-}S})-D(\bm y; \bm{\widehat \mu}))/|S|}{D(\bm y; \bm{\widehat \mu})/(n-p)}.
+\end{equation}
+In normal linear model theory, the null distribution of $F$ is \textit{exactly} $F_{|S|, n-p}$. For GLMs, the null distribution of $F$ is \textit{approximately} $F_{|S|, n-p}$. For $\phi$ known, we can also construct a goodness of fit test:
+This includes comparing the GLM to a saturated model, to get a goodness of fit test via
+\begin{equation}
+\frac{D(\bm y; \bm{\widehat \mu})}{\phi} \rightarrow \chi^2_{n-p},
+\end{equation}
+assuming the saturated model can be estimated relatively well (small dispersion asymptotics).
+
+\paragraph{Score test inference.}
+
+By the same exact logic as in Section~\ref{sec:score-tests-1}, we get that
+\begin{equation*}
+X^2 \equiv \nabla_{\theta}\log \mathcal L(\bm X \bm{\widehat \beta})I^{-1}(\bm X \bm{\widehat \beta})\nabla_{\theta}\log \mathcal L(\bm X \bm{\widehat \beta}) = (\bm y - \bm{\widehat \mu})^T \text{diag}(\ddot \psi(\bm \theta))^{-1} (\bm y - \bm{\widehat \mu}) = \sum_{i = 1}^n \frac{(y_i - \widehat \mu_i)^2}{\frac{1}{\phi}\text{var}(\widehat \mu_i)}.
+\end{equation*}
+the one difference being the extra factor of $\phi$. Under small-dispersion asymptotics, this test statistic has null distribution $\chi^2_{n-p}$.
+
+\section{R demo}
+
+Let's revisit the crime data from Homework 2, this time fitting a logistic regression to it.
+<<message = FALSE>>=
+# read crime data
+crime_data = read_tsv("../data/Statewide_crime.dat")
+
+# read and transform population data
+population_data = read_csv("../data/state-populations.csv")
+population_data = population_data %>%
+  filter(State != "Puerto Rico") %>%
+  select(State, Pop) %>%
+  rename(state_name = State, state_pop = Pop)
+
+# collate state abbreviations
+state_abbreviations = tibble(state_name = state.name,
+                             state_abbrev = state.abb) %>%
+  add_row(state_name = "District of Columbia", state_abbrev = "DC")
+
+# add CrimeRate to crime_data
+crime_data = crime_data %>%
+  mutate(STATE = ifelse(STATE == "IO", "IA", STATE)) %>%
+  rename(state_abbrev = STATE) %>%
+  filter(state_abbrev != "DC") %>%       # remove outlier
+  left_join(state_abbreviations, by = "state_abbrev") %>%
+  left_join(population_data, by = "state_name") %>%
+  mutate(CrimeRate = Violent/state_pop) %>%
+  select(state_abbrev, CrimeRate, Metro, HighSchool, Poverty, state_pop)
+
+crime_data
+@
+
+We can fit a GLM using the \verb|glm| command, specifying as additional arguments the observation weights as well as the exponential dispersion model. In this case, the weights are the state populations and the family is binomial:
+<<>>=
+glm_fit = glm(CrimeRate ~ Metro + HighSchool + Poverty,
+              weights = state_pop,
+              family = "binomial",
+              data = crime_data)
+@
+
+We can print the summary table as usual:
+<<>>=
+summary(glm_fit)
+@
+Amazingly, everything is very significant! This is because the weights for each observation (the state populations) are very high, effectively making the sample size very high.
+
+We can test individual coefficients or groups of coefficients using the likelihood ratio test, via \verb|anova|. For example, let's take a look at the p-value for \verb|Metro|:
+<<>>=
+glm_fit_partial = glm(CrimeRate ~ HighSchool + Poverty,
+                      weights = state_pop,
+                      family = "binomial",
+                      data = crime_data)
+
+anova_fit = anova(glm_fit_partial, glm_fit, test = "LRT")
+anova_fit
+@
+We can manually carry out the LRT as a sanity check:
+<<>>=
+deviance_partial = deviance(glm_fit_partial)
+deviance_full = deviance(glm_fit)
+lrt_stat = deviance_partial - deviance_full
+p_value = pchisq(lrt_stat, df = 1, lower.tail = FALSE)
+tibble(lrt_stat, p_value)
+@
+
+We can get Wald confidence intervals for the coefficients using \verb|confint|:
+<<>>=
+confint(glm_fit)
+@
+Or for the fitted values on the log-odds (natural parameter) scale using \verb|predict|:
+<<>>=
+ci_log_odds = predict(glm_fit,
+                      newdata = crime_data %>%
+                        column_to_rownames(var = "state_abbrev"),
+                      se.fit = TRUE) %>%
+  as.data.frame() %>%
+  rownames_to_column(var = "state") %>%
+  as_tibble() %>%
+  select(state, fit, se.fit)
+ci_log_odds
+@
+Or for the fitted values on the probability scale by applying the logistic transformation to the endpoints of the above intervals:
+<<>>=
+logistic = function(x)(exp(x)/(1+exp(x)))
+ci_probability = ci_log_odds %>%
+  mutate(lower = logistic(fit-2*se.fit),
+         upper = logistic(fit + 2*se.fit)) %>%
+  select(state, lower, upper)
+ci_probability
+@
+
+R code for goodness of fit testing will be provided in Chapter 5.
+
+\chapter{Generalized linear models: Special cases}
+
+Chapter 4 developed a general theory for GLMs. In Chapter 5, we specialize this theory to several important cases, including logistic regression and Poisson regression.
+
+\section{Logistic regression} \label{sec:logistic-regression}
+
+\subsection{Model definition and interpretation}
+
+\paragraph{Model definition.} Recall from Chapter 4 that the logistic regression model is
+\begin{equation}
+m_i y_i \overset{\text{ind}}\sim \text{Bin}(m_i, \pi_i); \quad \text{logit}(\pi_i) = \log\frac{\pi_i}{1-\pi_i} = \bm x^T_{i*}\bm \beta.
+\end{equation}
+Here we use the canonical logit link function, although other link functions are possible. The interpretation of the parameter $\beta_j$ is that a unit increase in $x_j$---other predictors held constant---is associated with an (additive) increase of $\beta_j$ on the log-odds scale or a multiplicative increase of $e^{\beta_j}$ on the odds scale. Note that logistic regression data come in two formats: \textit{ungrouped} and \textit{grouped}. For ungrouped data, we have $m_1 = \dots = m_n = 1$, so $y_i \in \{0,1\}$ are Bernoulli random variables. For grouped data, we can have several independent Bernoulli observations per predictor $\bm x_{i*}$, which give rise to binomial proportions $y_i \in [0,1]$. This happens most often when all the predictors are discrete. You can always convert grouped data into ungrouped data, but not necessarily vice versa. We'll discuss below that the grouped and ungrouped formulations of logistic regression have the same MLE and standard errors but different deviances.
+
+\paragraph{Generative model equivalent.} Consider the following generative model for $(\bm x, y) \in \mathbb R^{p-1} \times \{0,1\}$:
+\begin{equation}
+y \sim \text{Ber}(\pi); \quad \bm x|y \sim \begin{cases}N(\bm \mu_0, \bm V) \quad \text{if } y = 0 \\ N(\bm \mu_1, \bm V) \quad \text{if } y = 1\end{cases}.
+\end{equation}
+Then, we can derive that $y|\bm x$ follows a logistic regression model (called a \textit{discriminative} model because it conditions on $\bm x$). Indeed,
+\begin{equation}
+\begin{split}
+\text{logit}(p(y = 1|\bm x)) &= \log\frac{p(y = 1)p(\bm x|y = 1)}{p(y = 0)p(\bm x|y = 0)} \\
+&= \log\frac{\pi \exp\left(-\frac12(\bm x - \bm \mu_1)^T\bm V^{-1}(\bm x - \bm \mu_1)\right)}{(1-\pi) \exp\left(-\frac12(\bm x - \bm \mu_0)^T\bm V^{-1}(\bm x - \bm \mu_0)\right)} \\
+&= \beta_0 + \bm x^T \bm V^{-1}(\bm \mu_1 - \bm \mu_0) \\
+&\equiv \beta_0 + \bm x^T \bm \beta_{\text{-}0}.
+\end{split}
+\end{equation}
+This is another natural route to motivating the logistic regression model.
+
+\paragraph{Special case: $2 \times 2$ contingency table.}
+
+Suppose that $x \in \{0,1\}$, and consider the logistic regression model $\text{logit}(\pi_i) = \beta_0 + \beta_1 x_i$. For example, suppose that $x \in \{0,1\}$ encodes treatment (1) and control (0) in a clinical trial, and $y_i \in \{0,1\}$ encodes success (1) and failure (0). We make $n$ observations of $(x_i, y_i)$ in this ungrouped setup. The parameter $e^{\beta_1}$ can be interpreted as the \textit{odds ratio}:
+\begin{equation}
+e^{\beta_1} = \frac{\mathbb P[y = 1|x=1]/\mathbb P[y = 0|x=1]}{\mathbb P[y = 1|x=0]/\mathbb P[y = 0|x=0]}.
+\end{equation}
+This parameter is the multiple by which the odds of success increase when going from control to treatment. We can summarize such data via the $2 \times 2$ \textit{contingency table} (Table~\ref{tab:2-by-2-table}). A grouped version of this data would be $\{(x_1, y_1) = (0, 7/24), (x_2, y_2) = (1, 9/21)\}$. The null hypothesis $H_0: \beta_1 = 0 \Longleftrightarrow H_0: e^{\beta_1} = 1$ states that the success probability in both rows of the table is the same.
+\begin{table}[h!]
+\centering
+\begin{tabular}{c|cc|c}
+ & Success & Failure & Total \\
+ \hline
+ Treatment & 9 & 12 & 21 \\
+ Control & 7 & 17 & 24 \\
+ \hline
+ Total & 16 & 29 & 45
+\end{tabular}
+\caption{An example of a $2 \times 2$ contingency table.}
+\label{tab:2-by-2-table}
+\end{table}
+
+\paragraph{Logistic regression with case-control studies.}
+
+In a prospective study (e.g. a clinical trial), we assign treatment or control (i.e., $x$) to individuals, and then observe a binary outcome (i.e., $y$). Sometimes, the outcome $y$ takes a long time to measure or has highly imbalanced distribution in the population (e.g. the development of lung cancer). In this case, an appealing study design is the \textit{retrospective study}, where individuals are sampled based on their \textit{response values} (e.g. presence of lung cancer) rather than their treatment/exposure status (e.g. smoking). It turns out that a logistic regression model is appropriate for such retrospective study designs as well. Indeed, suppose that $y|\bm x$ follows a logistic regression model. Let's try to figure out the distribution of $y|\bm x$ in the retrospectively gathered sample. Letting $z \in \{0,1\}$ denote the indicator that an observation is sampled, define $\rho_1 \equiv \mathbb P[z = 1|y = 1]$ and $\rho_0 \equiv \mathbb P[z = 1|y = 0]$, and assume that $\mathbb P[z = 1, y, \bm x] = \mathbb P[z = 1 | y]$. The latter assumption states that the predictors $\bm x$ were not used in the retrospective sampling process. Then,
+\begin{equation*}
+\text{logit}(\mathbb P[y = 1|z = 1, \bm x]) = \log \frac{\rho_1 \mathbb P[y = 1|\bm x]}{\rho_0 \mathbb P[y = 0|\bm x]} = \log \frac{\rho_1}{\rho_0} + \text{logit}(\mathbb P[y = 1|\bm x]) = \left(\log \frac{\rho_1}{\rho_0} + \beta_0\right) + \bm x^T \bm \beta_{\text{-}0}.
+\end{equation*}
+Thus, conditioning on retrospective sampling changes only the intercept term, but preserves the coefficients of $\bm x$. Therefore, we can carry out inference for $\bm \beta_{\text{-}0}$ in the same way regardless of whether the study design is prospective or retrospective.
+
+\subsection{Estimation and inference}
+
+\paragraph{Score and Fisher information.}
+
+We recall from Chapter 4 that the score is
+\begin{equation}
+\frac{\partial}{\partial \bm \beta}\log \mathcal L(\bm \beta) = \bm X^T\bm D \bm V^{-1}(\bm y - \bm \mu) = \bm X^T \text{diag}\left(\frac{\partial \mu_i/\partial \eta_i}{\text{Var}[y_i]}\right)(\bm y - \bm \mu).
+\end{equation}
+Note that
+\begin{equation}
+\frac{\partial \mu_i/\partial \eta_i}{\text{Var}[y_i]} = \frac{\partial \mu_i/\partial \theta_i}{\text{Var}[y_i]} = \frac{\ddot \psi(\theta_i)}{\text{Var}[y_i]} = m_i.
+\end{equation}
+Therefore, the score equations are
+\begin{equation}
+0 = \bm X^T \text{diag}\left(m_i\right)(\bm y - \bm{\widehat\mu}) \quad \Longleftrightarrow \quad \sum_{i = 1}^n m_i x_{ij}(y_i-\widehat \pi_i) = 0, \quad j = 0, \dots, p-1.
+\end{equation}
+We can solve these equations using IRLS. The Fisher information is
+\begin{equation}
+\bm I(\bm \beta) = \bm X^T \bm W \bm X, \quad W_{ii} = \frac{(\partial \mu_i/\partial \eta_i)^2}{\text{Var}[y_i]} = \frac{\ddot \psi(\theta_i)^2}{\text{Var}[y_i]} = m_i^2 \text{Var}[y_i] = m_i \pi_i(1-\pi_i).
+\end{equation}
+
+\paragraph{Wald inference.}
+Using the results in the previous paragraph, we can carry out Wald inference based on the normal approximation
+\begin{equation}
+\bm{\widehat \beta} \overset \cdot \sim N\left(\bm \beta, \left(\bm X^T\text{diag}(m_i \widehat \pi_i(1-\widehat \pi_i))\bm X\right)^{-1}\right).
+\end{equation}
+This approximation holds for $\sum_{i = 1}^n m_i \rightarrow \infty$. Unfortunately, Wald inference in finite samples does not always perform very well. The Wald test above is known to be conservative due to the \textit{Hauck-Donner effect}. As an example, consider testing $H_0: \beta_0 = 0.5$ in the intercept-only model
+\begin{equation}
+ny \sim \text{Bin}(n, \pi); \quad \text{logit}(\pi) = \beta_0.
+\end{equation}
+The Wald test statistic is $z \equiv \widehat \beta/\text{SE} = \text{logit}(y)\sqrt{ny(1-y)}$. This test statistic actually tends to \textit{decrease} as $y \rightarrow 1$, since the standard error grows faster than the estimate itself. For example, take $n = 25$. Then, $z = 3.3$ for $n = 23/25$ but $z = 3.1$ for $n = 24/25$. So the test statistic becomes less significant as we go further away from the null!
+
+\paragraph{Perfect separability.}
+
+If we have a situation where a hyperplane in covariate space separates observations with $y_i = 0$ from those with $y_i = 1$, we have \textit{perfect separability}. It turns out that some of the maximum likelihood estimates are infinite in this case. The Wald test completely fails in this case, since it uses the parameter estimates as test statistics.
+
+\paragraph{Likelihood ratio inference.}
+
+Let's first compute the deviance of a logistic regression model. We have
+\begin{equation}
+L(\bm y; \bm \pi) = \sum_{i = 1}^n m_i y_i \log \pi_i + m_i(1-y_i) \log(1-\pi_i),
+\end{equation}
+so
+\begin{equation}
+D(\bm y; \bm{\widehat\pi}) = 2(L(\bm y; \bm y) - L(\bm y; \bm{\widehat \pi})) = 2\sum_{i = 1}^n \left(m_i y_i \log \frac{y_i}{\widehat \pi_i} + m_i(1-y_i) \log\frac{1-y_i}{1-\widehat \pi_i}\right).
+\label{eq:logistic-deviance}
+\end{equation}
+Letting $\bm{\widehat \pi}_0$ and $\bm{\widehat \pi}_1$ be the MLEs from two nested models, we can then express the likelihood ratio statistic as
+\begin{equation}
+T^{\text{LRT}} = 2(L(\bm y; \bm{\widehat \pi}_1) - L(\bm y; \bm{\widehat \pi}_0)) = 2\sum_{i = 1}^n \left(m_i y_i \log \frac{\widehat \pi_{i1}}{\widehat \pi_{i0}} + m_i(1-y_i) \log\frac{1-\widehat \pi_{i1}}{1-\widehat \pi_{i0}}\right).
+\end{equation}
+We can then construct a likelihood ratio test in the usual way. Likelihood ratio inference can give nontrivial conclusions in cases when Wald inference cannot, e.g. in the case of perfect separability. Indeed, suppose that
+\begin{equation}
+m_i y_i \sim \text{Bin}(m_i, \pi_i), \quad \text{logit}(\pi_i) = \beta_0 + \beta_1 x_i, \quad i = 1,2.
+\end{equation}
+We would like to test $H_0: \beta_1 = 0$. Suppose that we observe $(x_1, y_1) = (0, 0)$, $(x_2, y_2) = (1, 1)$, giving us complete separability. Can we still get a meaningful test of $H_0$? We can write out the likelihood ratio test statistic, which is
+\begin{equation*}
+D(\bm y; \bm{\widehat\pi}) = 2\left(m_1 \log\frac{1}{1-\frac{m_2}{m_1 + m_2}} + m_2 \log \frac{1}{\frac{m_2}{m_1 + m_2}}\right) = 2\left(m_1 \log\frac{m_1 + m_2}{m_1} + m_2 \log \frac{m_1 + m_2}{m_2}\right).
+\end{equation*}
+This is a number that we can compare to the $\chi^2_1$ distribution to get a $p$-value, as usual.
+
+\paragraph{Goodness of fit tests.}
+
+We can test goodness of fit in the grouped logistic regression model by comparing the deviance statistic~\eqref{eq:logistic-deviance} to the asymptotic null distribution $\chi^2_{n-p}$. We can alternatively use the score test, which gives us Pearson's $X^2$ statistic:
+\begin{equation}
+X^2 = \sum_{i = 1}^n \frac{(y_i - \widehat \pi_i)^2}{\widehat \pi_i(1-\widehat \pi_i)/m_i}.
+\end{equation}
+
+\paragraph{Fisher's exact test.}
+
+As an alternative to asymptotic tests for logistic regression, in the case of $2 \times 2$ tables there is an \textit{exact} test of $H_0: \beta_1 = 0$. Suppose we have
+\begin{equation}
+s_1 = m_1y_1 \sim \text{Bin}(m_1, \pi_1) \quad and \quad s_2 = m_2y_2 \sim \text{Bin}(m_2, \pi_2).
+\end{equation}
+The trick is to conduct inference \textit{conditional on} $s_1 + s_2$. Note that under $H_0: \pi_1 = \pi_2$, we have
+\begin{equation}
+\begin{split}
+\mathbb P[s_1 = t | s_1+s_2 = v] &= \mathbb P[s_1 = t | s_1 + s_2 = v] \\
+&= \frac{\mathbb P[s_1 = t, s_2 = v-t]}{\mathbb P[s_1 + s_2 = v]} \\
+&= \frac{{m_1 \choose t}\pi^{t}(1-\pi)^{m_1 - t}{m_2 \choose v-t}\pi^{v-t}(1-\pi)^{m_2 - (v-t)}}{{m_1 + m_2 \choose v}\pi^v (1-\pi)^{m_1 + m_2 - v}} \\
+&= \frac{{m_1 \choose t}{m_2 \choose v-t}}{{m_1 + m_2 \choose v}}.
+\end{split}
+\end{equation}
+Therefore, a finite-sample $p$-value to test $H_0: \pi_1 = \pi_2$ versus $H_1: \pi_1 > \pi_2$ is $\mathbb P[s_1 \geq t | s_1 + s_2]$, which can be computed exactly based on the formula above.
+
+\section{Poisson regression} \label{sec:poisson-regression}
+
+The Poisson regression model (with offsets) is
+\begin{equation}
+y_i \overset{\text{ind}}\sim \text{Poi}(\mu_i); \quad \log \mu_i = o_i + \bm x_{i*}^T \bm \beta.
+\label{eq:poisson-with-offsets}
+\end{equation}
+Because the log of the mean is linear in the predictors, Poisson regression models are often called \textit{loglinear models}. We have seen in Chapter 4 how to carry out inference for this model based on the Wald, likelihood ratio, and score tests. Recall, for example, that the deviance of this model is
+\begin{equation}
+D(\bm y; \bm{\widehat \mu}) = \sum_{i = 1}^n y_i \log\frac{y_i}{\widehat \mu_i}.
+\end{equation}
+
+\subsection{Modeling rates}
+
+One cool feature of the Poisson model is that rates can be easily modeled with the help of offsets. Let's say that the count $y_i$ is collected over the course of a time interval of length $t_i$, or a spatial region with area $t_i$, or a population of size $t_i$, etc. Then, it is meaningful to model
+\begin{equation}
+y_i \overset{\text{ind}} \sim \text{Poi}(\pi_i t_i), \quad \log \pi_i = \bm x^T_{i*}\bm \beta,
+\end{equation}
+where $\pi_i$ represents the rate of events per day / per square mile / per capita, etc. In other words,
+\begin{equation}
+y_i \overset{\text{ind}} \sim \text{Poi}(\mu_i), \quad \log \mu_i = \log t_i + \bm x^T_{i*}\bm \beta,
+\end{equation}
+which is exactly equation~\eqref{eq:poisson-with-offsets} with offsets $o_i = \log t_i$. For example, in single cell RNA-sequencing, $y_i$ is the number of reads aligning to a gene in cell $i$ and $t_i$ is the total number of reads measured in the cell, a quantity called the \textit{sequencing depth}. We might use a Poisson regression model to carry out a \textit{differential expression analysis} between two cell types.
+
+\subsection{Relationship between Poisson and multinomial distributions}
+
+Suppose that $y_i \overset{\text{ind}}\sim \text{Poi}(\mu_i)$ for $i = 1, \dots, n$. Then,
+\begin{equation}
+\begin{split}
+\mathbb P\left[y_1 = m_1, \dots, y_n = m_n \left| \sum_{i}y_i = m\right.\right] &= \frac{\mathbb P[y_1 = m_1, \dots, y_n = m_n]}{\mathbb P[\sum_{i}y_i = m]} \\
+&= \frac{\prod_{i = 1}^n e^{-\mu_i}\frac{\mu_i^{y_i}}{y_i!}}{e^{-\sum_i \mu_i}\frac{(\sum_i \mu_i)^m}{m!}} \\
+&= {m \choose m_1, \dots, m_n}\prod_{i = 1}^n \pi_i^{y_i}; \quad \pi_i \equiv \frac{\mu_i}{\sum_{i' = 1}^n \mu_{i'}}.
+\end{split}
+\end{equation}
+We recognize the last expression as the probability mass function of the multinomial distribution with parameters $(\pi_1, \dots, \pi_n)$ summing to one. In words, the joint distribution of a set of independent Poisson distributions conditional on their sum is a multinomial distribution.
+
+\subsection{Poisson model for $2 \times 2$ contingency tables}
+
+Let's say that we have two binary random variables $x_1, x_2 \in \{0,1\}$ with joint distribution $\mathbb P(x_1 = j, x_2 = k) = \pi_{jk}$ for $j,k \in \{0,1\}$. We collect a total of $n$ samples from this joint distribution and summarize the counts in a $2 \times 2$ table, where $y_{jk}$ is the number of times we observed $(x_1, x_2) = (j,k)$, so that
+\begin{equation}
+(y_{00}, y_{01}, y_{10}, y_{11})|n \sim \text{Mult}(n, (\pi_{00}, \pi_{01}, \pi_{10}, \pi_{11})).
+\end{equation}
+Our primary question is whether these two random variables are independent, i.e.
+\begin{equation}
+\pi_{jk} = \pi_{j+}\pi_{+k}, \quad \text{where} \quad \pi_{j+} \equiv \mathbb P[x_1 = j] = \pi_{j1} + \pi_{j2}; \quad \pi_{+k} \equiv \mathbb P[x_2 = k] = \pi_{1k} + \pi_{2k}.
+\label{eq:null-product-formulation}
+\end{equation}
+We can express this equivalently as
+\begin{equation}
+\pi_{00}(\pi_{00} + \pi_{01} + \pi_{10} + \pi_{11}) = \pi_{00} = \pi_{0+}\pi_{+0} = (\pi_{00} + \pi_{01})(\pi_{00} + \pi_{10}) \quad \Longleftrightarrow \quad \pi_{00}\pi_{11} = \pi_{01}\pi_{10}.
+\end{equation}
+In other words, we can express the independence hypothesis concisely as
+\begin{equation}
+H_0: \frac{\pi_{11}\pi_{00}}{\pi_{10}\pi_{01}} = 1.
+\label{eq:independence}
+\end{equation}
+Let's arbitrarily assume that, additionally, $n \sim \text{Poi}(\mu_{++})$. Then,
+\begin{equation}
+(y_{00}, y_{01}, y_{10}, y_{11}) \sim \text{Poi}(\mu_{++}\pi_{00}) \times \text{Poi}(\mu_{++} \pi_{01}) \times \text{Poi}(\mu_{++}\pi_{10}) \times \text{Poi}(\mu_{++}\pi_{11}).
+\end{equation}
+Let $i \in 1,2,3,4$ index the four pairs $(x_1, x_2) \in \{(0,0), (0,1), (1,0), (1,1)\}$, so that
+\begin{equation}
+y_i \overset{\text{ind}}\sim \text{Poi}(\mu_i); \quad \log \mu_i = \beta_0 + \beta_1 x_{i1} + \beta_2 x_{i2} + \beta_{12}x_{i1} x_{i2}, \quad i = 1, \dots, 4,
+\label{eq:2-by-2-Poisson-reg}
+\end{equation}
+where
+\begin{equation}
+\beta_0 = \log \mu_{++} + \log \pi_{00}; \quad \beta_1 = \log \frac{\pi_{10}}{\pi_{00}}; \quad \beta_2 = \log \frac{\pi_{01}}{\pi_{00}}; \quad \beta_{12} = \log\frac{\pi_{11}\pi_{00}}{\pi_{10}\pi_{01}}.
+\end{equation}
+Note that the independence hypothesis~\eqref{eq:independence} reduces to the hypothesis $H_0: \beta_{12} = 0$:
+\begin{equation}
+H_0: \frac{\pi_{11}\pi_{00}}{\pi_{10}\pi_{01}} = 1 \quad \Longleftrightarrow \quad H_0: \beta_{12} = 0.
+\end{equation}
+So the presence of an interaction in the Poisson regression is equivalent to a lack of independence between $x_1$ and $x_2$. We can test the latter hypothesis using our standard tools for Poisson regression. For example, we can use the Pearson $X^2$ goodness of fit test. To apply this test, we must find the fitted means under the null hypothesis. The normal equations state that the observed cell counts equal those that would have been expected under the null hypothesis. Using the formulation~\eqref{eq:null-product-formulation}, we obtain
+\begin{equation}
+y_{jk} = \mathbb E[y_{jk}] = \widehat \mu_{++} \widehat \pi_{j+}\widehat \pi_{+k},
+\end{equation}
+so that
+\begin{equation}
+\widehat \mu = y_{++}; \quad \widehat \mu_{++} \widehat \pi_{j+} = y_{j+}; \quad \widehat \mu_{++} \widehat \pi_{+k} = y_{+k},
+\end{equation}
+from which it follows that
+\begin{equation}
+\widehat \mu_{jk} = \widehat \mu_{++} \widehat \pi_{j+}\widehat \pi_{+k} = y_{++}\frac{y_{j+}}{y_{++}}\frac{y_{+k}}{y_{++}} = \frac{y_{j+}y_{+k}}{y_{++}}.
+\end{equation}
+Hence, we have
+\begin{equation}
+X^2 = \sum_{j,k = 0}^1 \frac{(y_{jk} - \widehat \mu_{jk})^2}{\widehat \mu_{jk}}.
+\end{equation}
+Alternatively, we can use the likelihood ratio test, which gives
+\begin{equation}
+G^2 = \sum_{j,k = 0}^1 y_{jk}\log\frac{y_{jk}}{\widehat \mu_{jk}}.
+\end{equation}
+
+\subsection{Inference is the same regardless of conditioning on margins}
+
+Now, our data might actually have been collected such that $n \sim \text{Poi}(\mu)$, or maybe $n$ was fixed in advance. Is the Poisson inference proposed above actually valid in the latter case? In fact, it is! To see this, we claim that the likelihood ratio statistic is the same for the Poisson and multinomial models. Indeed, let's write the Poisson likelihood as follows:
+\begin{equation}
+p_{\bm \mu}(\bm y) = p_{\mu_{++}}(y_{++} = n)p_{\bm \pi}(\bm y|y_{++} = n).
+\end{equation}
+Note that the fitted parameter $\widehat \mu_{++}$ is the same under the null and alternative hypotheses: $\widehat \mu^0_{++} = \widehat \mu^{1}_{++}$, so we have
+\begin{equation}
+\frac{p_{\bm{\widehat\mu}^1}(\bm y)}{p_{\bm{\widehat\mu}^0}(\bm y)} = \frac{p_{\widehat\mu^1_{++}}(y_{++} = n)p_{\bm{\widehat\pi}^1}(\bm y|y_{++} = n)}{p_{\widehat\mu^0_{++}}(y_{++} = n)p_{\bm{\widehat\pi}^0}(\bm y|y_{++} = n)} = \frac{p_{\bm{\widehat\pi}^1}(\bm y|y_{++} = n)}{p_{\bm{\widehat\pi}^0}(\bm y|y_{++} = n)}.
+\end{equation}
+The latter expression is the likelihood ratio statistic for the multinomial model. The same argument shows that conditioning on the row or column totals (as opposed to the overall total) also yields the same exact inference. Therefore, regardless of the sampling mechanism, we can always conduct an independence test in a $2 \times 2$ table via a Poisson regression.
+
+\subsection{Equivalence among Poisson and logistic regressions}
+
+We've talked above two ways to view a $2 \times 2$ contingency table. In the logistic regression view, we thought about one variable as a predictor and the other as a response, seeking to test whether the predictor has an impact on the response. In the Poisson regression view, we thought about the two variables symmetrically, seeking to test independence. It turns out that these two perspectives are equivalent. Note that under the Poisson model, we have
+\begin{equation}
+\text{logit }\mathbb P[x_2 = 1|x_1 = 0] = \log \frac{\pi_{01}}{\pi_{00}} = \beta_2
+\end{equation}
+and
+\begin{equation}
+\text{logit }\mathbb P[x_2 = 1|x_1 = 1] = \log \frac{\pi_{11}}{\pi_{10}} = \log \frac{\pi_{01}}{\pi_{00}} + \log\frac{\pi_{11}\pi_{00}}{\pi_{10}\pi_{01}} = \beta_2 + \beta_{12}.
+\end{equation}
+In other words,
+\begin{equation}
+\text{logit }\mathbb P[x_2 = 1|x_1] = \beta_2 + \beta_{12}x_1.
+\label{eq:2-by-2-logistic-reg}
+\end{equation}
+Therefore, the $\beta_{12}$ parameter for the Poisson regression~\eqref{eq:2-by-2-Poisson-reg} is the same as it is for the logistic regression~\eqref{eq:2-by-2-logistic-reg}.
+
+\subsection{Poisson models for $J \times K$ contingency tables}
+
+Suppose now that $x_1 \in \{1, \dots, J\}$ and $x_2 \in \{1, \dots, K\}$. Then, we denote $\mathbb P[x_1 = j, x_2 = k] = \pi_{jk}$. We still are interested in testing for independence between $j$ and $k$, which amounts to a goodness-of-fit test for the Poisson model
+\begin{equation}
+y_{jk} \overset{\text{ind}}\sim\text{Poi}(\mu_{jk}); \quad \log \mu_{jk} = \beta_0 + \beta^1_j + \beta^2_k.
+\end{equation}
+The Pearson statistic for this test is
+\begin{equation}
+\sum_{j = 1}^J \sum_{k = 1}^K \frac{(y_{ij} - \widehat \mu_{ij})^2}{\widehat \mu_{ij}}; \quad \widehat \mu_{ij} = \widehat y_{++}\frac{y_{i+}}{y_{++}}\frac{y_{+j}}{y_{++}}.
+\end{equation}
+Like with the $2 \times 2$ case, the test is the same regardless if we condition on the row sums, column sums, total count, or if we do not condition at all. The degrees of freedom in the full model is $JK$, while the degrees of freedom in the partial model is $J+K-1$, so the degrees of freedom for the goodness-of-fit test is $JK - J - K + 1 = (J-1)(K-1)$. Pearson erroneously concluded that the test had $JK-1$ degrees of freedom, which when Fisher corrected created a lot of animosity between these two statisticians.
+
+\subsection{Poisson models for $J \times K \times L$ contingency tables}
+
+These ideas can be extended to multi-way tables, for example three-way tables. If we have $x_1 \in \{1, \dots, J\}, x_2 \in \{1, \dots, K\}, x_3 \in \{1, \dots, L\}$, then we might be interested in testing several kinds of null hypotheses:
+\begin{itemize}
+\item Mutual independence: $H_0: x_1 \perp \!\!\! \perp x_2 \perp \!\!\! \perp x_3$.
+\item Joint independence: $H_0: x_1 \perp \!\!\! \perp (x_2, x_3)$.
+\item Conditional independence: $H_0: x_1 \perp \!\!\! \perp x_2 \mid x_3$.
+\end{itemize}
+These three null hypotheses can be shown to be equivalent to the Poisson regression model
+\begin{equation}
+y_{jkl} \overset{\text{ind}}\sim \text{Poi}(\mu_{jkl}),
+\end{equation}
+where
+\begin{equation}
+\log \mu_{ijk} = \beta_0 + \beta^1_{j} + \beta^2_k + \beta^3_l \quad \text{(mutual independence)};
+\end{equation}
+\begin{equation}
+\log \mu_{ijk} = \beta_0 + \beta^1_{j} + \beta^2_k + \beta^3_l + \beta^{2,3}_{kl} \quad \text{(joint independence)};
+\end{equation}
+\begin{equation}
+\log \mu_{ijk} = \beta_0 + \beta^1_{j} + \beta^2_k + \beta^3_l + \beta^{1,2}_{jk} + \beta^{1,3}_{jl} \quad \text{(mutual independence)}.
+\end{equation}
+
+\section{Negative binomial regression} \label{sec:nb-regression}
+
+\paragraph{Overdispersion.} A pervasive issue with Poisson regression is \textit{overdispersion}: that the variances of observations are greater than the corresponding means. A common cause of overdispersion is omitted variable bias. Suppose that $y \sim \text{Poi}(\mu)$, where $\log \mu = \beta_0 + \beta_1 x_1 + \beta_2 x_2$. However, we omitted variable $x_2$ and are considering the GLM based on $\log \mu = \beta_0 + \beta_1 x_1$. If $\beta_2 \neq 0$ and $x_2$ is correlated with $x_1$, then we have a confounding issue. Let's consider the more benign situation that $x_2$ is independent of $x_1$. Then, we have
+\begin{equation}
+\mathbb E[y|x_1] = \mathbb E[\mathbb E[y|x_1, x_2]|x_1] = \mathbb E[e^{\beta_0 + \beta_1 x_1 + \beta_2 x_2}|x_1] = e^{\beta_0 + \beta_1 x_1}\mathbb E[e^{\beta_2 x_2}] = e^{\beta'_0 + \beta_1 x_1}.
+\end{equation}
+So in the model for the mean of $y$, the impact of omitted variable $x_2$ seems only to have impacted the intercept. Let's consider the variance of $y$:
+\begin{equation}
+\text{Var}[y|x_1] = \mathbb E[\text{Var}[y|x_1, x_2]|x_1] + \text{Var}[\mathbb E[y|x_1, x_2]|x_1] = e^{\beta'_0 + \beta_1 x_1} + e^{2(\beta'_0 + \beta_1 x_1)}\text{Var}[e^{\beta_2 x_2}] > e^{\beta'_0 + \beta_1 x_1} = \mathbb E[y|x_1].
+\end{equation}
+So indeed, the variance is larger than what we would have expected under the Poisson model.
+
+\paragraph{Hierarchical Poisson regression.} Let's say that $y|\bm x \sim \text{Poi}(\lambda)$, where $\lambda|\bm x$ is random due to the fluctuations of the omitted variables. A common distribution used to model nonnegative random variables is the \textit{gamma} distribution $\Gamma(\mu, k)$, parameterized by a mean $\mu > 0$ and a \textit{shape} $k > 0$. This distribution has probability density function
+\begin{equation}
+f(\lambda; k, \mu) = \frac{(k/\mu)^k}{\Gamma(k)}e^{-k\lambda/\mu}\lambda^{k-1},
+\end{equation}
+with mean and variance given by
+\begin{equation}
+\mathbb E[\lambda] = \mu; \quad \text{Var}[\lambda] = \mu^2/k.
+\end{equation}
+Therefore, it makes sense to augment the Poisson regression model as follows:
+\begin{equation}
+\lambda|\bm x \sim \Gamma(\mu, k), \quad \log \mu = \bm x^T \bm \beta, \quad y | \lambda \sim \text{Poi}(\lambda).
+\label{eq:nb-hierarchical}
+\end{equation}
+
+\paragraph{Negative binomial distribution.}
+
+A simpler way to write the hierarchical model~\eqref{eq:nb-hierarchical} would be to marginalize out $\lambda$. Doing so leaves us with a count distribution called the \textit{negative binomial distribution}:
+\begin{equation}
+\lambda \sim \Gamma(\mu, k),\  y | \lambda \sim \text{Poi}(\lambda) \quad \Longrightarrow \quad y \sim \text{NegBin}(\mu, k).
+\end{equation}
+The negative binomial probability mass function is
+\begin{equation}
+p(y; \mu, k) = \int_0^\infty \frac{(k/\mu)^k}{\Gamma(k)}e^{-k\lambda/\mu}\lambda^{k-1}e^{-\lambda}\frac{\lambda^y}{y!}d\lambda = \frac{\Gamma(y+k)}{\Gamma(k)\Gamma(y+1)}\left(\frac{\mu}{\mu + k}\right)^{y}\left(\frac{k}{\mu + k}\right)^{k}.
+\end{equation}
+This random variable has mean and variance given by
+\begin{equation}
+\mathbb E[y] = \mathbb E[\lambda] = \mu \quad \text{and} \quad \text{Var}[y] = \mathbb E[\lambda] + \text{Var}[\lambda] = \mu + \frac{\mu^2}{k}.
+\end{equation}
+
+\paragraph{Negative binomial as exponential dispersion model.}
+
+If we treat $k$ as known, then the negative binomial distribution is in the exponential family:
+\begin{equation}
+p(y; \mu, k) = \exp\left(y \log \frac{\mu}{\mu + k} - k \log \frac{\mu + k}{k}\right)\frac{\Gamma(y+k)}{\Gamma(k)\Gamma(y+1)}.
+\end{equation}
+We can read off that
+\begin{equation}
+\theta = \log \frac{\mu}{\mu + k}, \quad \psi(\theta) = k\log \frac{\mu + k}{k} = -k\log(1-e^{\theta}).
+\label{eq:neg-bin-exp-fam}
+\end{equation}
+This is a regular exponential family model, and not an exponential dispersion model. Given the extra parameter $k$ controlling the variance, we may have been expecting to see an EDM. We can arrive at the EDM form by putting $1/k$ in the denominator:
+\begin{equation}
+p(y; \mu, k) = \exp\left(\frac{\frac{y}{k} \log \frac{\mu}{\mu + k} - \log \frac{\mu + k}{k}}{1/k}\right)\frac{\Gamma(y+k)}{\Gamma(k)\Gamma(y+1)}.
+\end{equation}
+Note that the ``normalized'' variable $y/k$ has the EDM distribution rather than the count variable $y$; this parallels our modeling of the binomial \textit{proportion} (rather than the binomial count) as an EDM. We then see that $y/k$ has the dispersion parameter $\phi = 1/k$. An alternate parameterization of the negative binomial model is via $\gamma = \phi = 1/k$. Here, $\gamma$ is called the negative binomial \textit{dispersion}.
+
+\paragraph{Negative binomial regression.}
+
+Let's revisit the hierarchical model~\eqref{eq:nb-hierarchical}, writing it more succinctly in terms of the negative binomial distribution:
+\begin{equation}
+y_i \overset{\text{ind}}\sim \text{NegBin}(\mu_i, \gamma), \quad \log \mu_i = \bm x^T \bm \beta.
+\end{equation}
+Notice that we typically assume that all observations share the same dispersion parameter $\gamma$. Reading off from equation~\eqref{eq:neg-bin-exp-fam}, we see that the canonical link function for the negative binomial distribution is $\mu \mapsto \log \frac{\mu}{\mu + k}$. However, typically for negative binomial regression we use the log link $g(\mu) = \log \mu$ instead. This is our first example of a non-canonical link!
+
+\paragraph{Estimation in negative binomial regression.}
+
+Negative binomial regression is an EDM when $\gamma$ is known, but typically the dispersion parameter is unknown. Note that there is a dependency in $\psi$ on $k$ (i.e. on $\gamma$), which complicates things. It means that the estimate $\bm{\widehat \beta}$ depends on the parameter $\gamma$ (this does not happen, for example, in the normal linear model case).\footnote{Having said that, the dependency between $\bm{\widehat \beta}$ and $\widehat \gamma$ is weak, as the two are asymptotically independent parameters.} Therefore, estimation in negative binomial regression is typically an iterative procedure, where at each step $\bm \beta$ is estimated for the current value of $\gamma$ and then $\gamma$ is estimated based on the updated value of $\bm \beta$. Let's discuss each of these tasks in turn. Given a value of $\gamma$, we have the normal equations
+\begin{equation}
+0 = \bm X^T \text{diag}\left(\frac{\partial \mu_i/\partial \eta_i}{\text{Var}[y_i]}\right)(\bm y - \bm \mu) = \bm X^T \text{diag}\left(\frac{\mu_i}{\mu_i + \gamma \mu_i^2}\right)(\bm y - \bm \mu) = \bm X^T \text{diag}\left(\frac{1}{1 + \gamma \mu_i}\right)(\bm y - \bm \mu).
+\end{equation}
+This reduces to the Poisson normal equations when $\gamma = 0$. Solving these equations for a fixed value of $\gamma$ can be done via IRLS, as usual. Estimating $\gamma$ for a fixed value of $\bm \beta$ can be done in several ways, including setting to zero the derivative of the likelihood with respect to $\gamma$. This results in a nonlinear equation (not given here) that must be solved iteratively.
+
+\paragraph{Wald inference.}
+
+Note that
+\begin{equation}
+\bm W_{ii} = \frac{(\partial \mu_i/\partial \eta_i)^2}{\text{Var}[y_i]} = \frac{\mu_i^2}{\mu_i + \gamma \mu_i^2} = \frac{\mu_i}{1 + \gamma \mu_i}.
+\end{equation}
+Hence, Wald inference is based on
+\begin{equation}
+\widehat{\text{Var}}[\bm{\widehat \beta}] = (\bm X^T \bm{\widehat W} \bm X)^{-1}, \quad \text{where} \quad \bm{\widehat W} = \text{diag}\left(\frac{\widehat \mu_i}{1 + \widehat\gamma \widehat\mu_i}\right).
+\end{equation}
+
+\paragraph{Likelihood ratio test inference.}
+
+The negative binomial deviance is
+\begin{equation}
+D(\bm y; \bm{\widehat \mu}) = 2\sum_{i = 1}^n \left(y_i \log \frac{y_i}{\widehat \mu_i} - \left(y_i + \frac{1}{\widehat \gamma}\right)\log \frac{1 + \widehat \gamma y_i}{1 + \widehat \gamma \widehat \mu_i}\right).
+\end{equation}
+We can use this for comparing nested models and for goodness of fit testing, as usual.
+
+\paragraph{Testing for overdispersion.}
+
+It is reasonable to want to test for overdispersion, i.e. to test the null hypothesis $H_0: \gamma = 0$. This is somewhat of a tricky task, because $\gamma = 0$ is at the edge of the parameter space. There are formal tests of this hypothesis, but they are beyond the scope of this course. Another approach is to simply fit a negative binomial model and get a confidence interval for $\gamma$. It is probably not particularly reliable for small values of $\gamma$, but if it is far away from zero then likely we have some overdispersion on our hands. Finally, if goodness of fit tests in the Poisson model are significant, this may be an indication of overdispersion. It may also be an indication of omitted variable bias (e.g. you forgot to include an interaction), so it's somewhat tricky.
+
+\paragraph{Overdispersion in logistic regression.}
+
+Note that overdispersion is potentially an issue not only in Poisson regression models, but in logistic regression models as well. Dealing with overdispersion in the latter case is more tricky, because the analog of the negative binomial model (the beta-binomial model) is not an exponential family. An alternate route to dealing with overdispersion is quasi-likelihood modeling, but this topic is beyond the scope of the course.
+
+\section{R demo} \label{sec:r-demo}
+
+<<message = FALSE>>=
+library(tidyverse)
+@
+\noindent Here we are again, face to face with the crime data, with one last chance to get the analysis right. Let's load and preprocess it, as before.
+<<message = FALSE>>=
+# read crime data
+crime_data = read_tsv("../data/Statewide_crime.dat")
+
+# read and transform population data
+population_data = read_csv("../data/state-populations.csv")
+population_data = population_data %>%
+  filter(State != "Puerto Rico") %>%
+  select(State, Pop) %>%
+  rename(state_name = State, state_pop = Pop)
+
+# collate state abbreviations
+state_abbreviations = tibble(state_name = state.name,
+                             state_abbrev = state.abb) %>%
+  add_row(state_name = "District of Columbia", state_abbrev = "DC")
+
+# add CrimeRate to crime_data
+crime_data = crime_data %>%
+  mutate(STATE = ifelse(STATE == "IO", "IA", STATE)) %>%
+  rename(state_abbrev = STATE) %>%
+  filter(state_abbrev != "DC") %>%       # remove outlier
+  left_join(state_abbreviations, by = "state_abbrev") %>%
+  left_join(population_data, by = "state_name") %>%
+  select(state_abbrev, Violent, Metro, HighSchool, Poverty, state_pop)
+
+crime_data
+@
+\noindent Let's recall the logistic regression we ran on these data in Chapter 4:
+<<>>=
+bin_fit = glm(Violent/state_pop ~ Metro + HighSchool + Poverty,
+              weights = state_pop,
+              family = "binomial",
+              data = crime_data)
+@
+\noindent Recall that everything was significant:
+<<>>=
+summary(bin_fit)
+@
+\noindent But there were already signs of trouble in this regression summary. The summary tells us that the residual deviance is 11742 on 46  degrees of freedom. This is a measure of the goodness of fit of the model, as the residual deviance should have a chi-square distribution with 46 degrees of freedom if the model fits well. But this distribution has a mean of 46, so having a value of 11742 seems way too large. We can confirm this suspicion with a formal deviance-based goodness of fit test:
+<<>>=
+pchisq(bin_fit$deviance,
+       df = bin_fit$df.residual,
+       lower.tail = FALSE)
+@
+\noindent Wow, we get a $p$-value of zero! Let's try doing a score-based (i.e. Pearson) goodness of fit test:
+<<>>=
+pchisq(sum(resid(bin_fit, "pearson")^2),
+       df = bin_fit$df.residual,
+       lower.tail = FALSE)
+@
+\noindent Here the code \verb|sum(resid(bin_fit, "pearson")^2)| extracts the sum of the squares of the Pearson residuals, which we did not discuss, but which gives us Pearson's $X^2$ statistic. So in this case, we again get a $p$-value of zero! So this model definitely does not fit well. We have therefore omitted some important variables and/or we have serious overdispersion on our hands.
+
+\noindent We haven't discussed in any detail how to deal with overdispersion in logistic regression models, so let's try a Poisson model instead. The natural way to model rates using Poisson distributions is via offsets:
+<<>>=
+pois_fit = glm(Violent ~ Metro + HighSchool + Poverty + offset(log(state_pop)),
+               family = "poisson",
+               data = crime_data)
+summary(pois_fit)
+@
+\noindent Again, everything is significant, and again, the regression summary shows that we have a huge residual deviance. This was to be expected, given that $\text{Bin}(m, \pi) \approx \text{Poi}(m\pi)$ for large $m$ and small $\pi$. So, the natural thing to try is a negative binomial regression! Negative binomial regression is not implemented in the regular \verb|glm| package, but \verb|glm.nb()| from the \verb|MASS| package is a dedicated function for this task. Let's see what we get:
+<<>>=
+nb_fit = MASS::glm.nb(Violent ~ Metro + HighSchool + Poverty + offset(log(state_pop)),
+                data = crime_data)
+summary(nb_fit)
+@
+\noindent Aha! Things are not looking so significant anymore! And the residual deviance is not as huge! The estimated value of $\gamma$ (confusingly called $\theta$ in the summary) is significantly different from zero, indicating overdispersion. Now it appears that this model fits. Finally! Let's do a deviance-based goodness of fit test to make sure:
+<<>>=
+pchisq(nb_fit$deviance,
+       df = nb_fit$df.residual,
+       lower.tail = FALSE)
+@
+\noindent Ok, great. Now that we have a well-fitting model, we can do inference within this model that we can trust. For example, we can get Wald confidence intervals:
+<<>>=
+confint.default(nb_fit)
+@
+\noindent Or we can get LRT-based (i.e. profile) confidence intervals:
+<<>>=
+confint(nb_fit)
+@
+\noindent Or we can get confidence intervals for the predicted means:
+<<>>=
+predict(nb_fit,
+        newdata = crime_data %>% column_to_rownames(var = "state_abbrev"),
+        type = "response",
+        se.fit = TRUE)
+@
+\noindent We can carry out some hypothesis tests as well, e.g. to test $H_0: \beta_{\text{Metro}} = 0$:
+<<>>=
+nb_fit_partial = MASS::glm.nb(Violent ~ HighSchool + Poverty + offset(log(state_pop)),
+                     data = crime_data)
+anova_fit = anova(nb_fit_partial, nb_fit)
+anova_fit
+@
+
+\chapter{Further Topics}
+
+Chapters 1-5 focused on estimation and inference in linear models and generalized linear models. In Chapter 6, we explore further topics: multiple testing (Section~\ref{sec:multiple-testing}) and high-dimensional inference under the model-X assumption (Section~\ref{sec:model-x}).
+
+\section{Multiple testing} \label{sec:multiple-testing}
+
+In this class, we have talked a lot about hypothesis testing, e.g. testing the significance of a coefficient in a (generalized) linear model. But frequently, there are multiple hypotheses we care about testing; let us denote these null hypotheses by $H_1, \dots, H_m$. After obtaining $p$-values for each null hypothesis---denote these by $p_1, \dots, p_m$---we may want to answer questions about this entire collection of hypotheses. In particular:
+\begin{itemize}
+\item Global testing: Test the \textit{global null hypothesis} $H_0: H_1 \cap \cdots \cap H_m$.
+\item Multiple testing: Find a subset $S \subseteq \{1, \dots, m\}$ of null hypotheses to reject so that the set $S$ satisfies some notion of Type-I error.
+\end{itemize}
+We discuss global testing in Section~\ref{sec:global-testing} and multiple testing in Section~\ref{subsec:multiple-testing}.
+
+\subsection{Global testing} \label{sec:global-testing}
+
+\paragraph{Global testing problem setup.} Here we want to test whether \textit{any} of the null hypotheses $H_1, \dots, H_m$ is false. For example, suppose that $H_j: \beta_j = 0$, where $\beta_j$ are the coefficients in a GLM. Then, $H_0: \beta_1 = \cdots = \beta_m = 0$. We recognize this hypothesis as something we would test using an $F$-test or, more generally, a likelihood ratio test. Here we are concerned with the more general problem of aggregating $m$ $p$-values for individual hypotheses (whatever these hypotheses may be) into one $p$-value (i.e. one test) for the global null. A level-$\alpha$ test $\phi(p_1, \dots, p_m)$ of the global null must satisfy
+\begin{equation}
+\mathbb E_{H_0}[\phi(p_1, \dots, p_m)] \leq \alpha.
+\label{eq:global-test-type-1-error}
+\end{equation}
+
+\paragraph{The multiplicity problem.} A naive test would separately test the $m$ hypotheses, and then reject if any are significant:
+\begin{equation}
+\phi_{\text{naive}}(p_1, \dots, p_m) = \mathbbm 1\left(p_j \leq \alpha \text{ for some } j = 1, \dots, m\right).
+\end{equation}
+This test does not control the Type-I error. In fact, assuming the input $p$-values are independent, we have
+\begin{equation}
+\mathbb E_{H_0}[\phi_{\text{naive}}(p_1, \dots, p_m)] = 1-(1-\alpha)^m \rightarrow 1 \quad \text{as} \quad m \rightarrow \infty.
+\end{equation}
+This is an illustration of \textit{the multiplicity problem}: The more hypotheses we test, the more likely one of them is going to appear significant just by chance. This is related to data-snooping and the issue of selection bias. If we had chosen just one hypothesis a priori, then we can compare its $p$-value to the nominal level of $\alpha$. If we chose the hypothesis by looking (``snooping'') at the $p$-values of $m$ hypotheses and choosing the most significant, we have incurred selection bias that must be corrected for. See Figure~\ref{fig:spurious-correlation}.
+\begin{figure}
+\includegraphics[width = \textwidth]{figures/spurious-correlation.png}
+\caption{A spurious correlation resulting from data snooping.}
+\label{fig:spurious-correlation}
+\end{figure}
+There are several ways of properly correcting for this selection bias, i.e. several valid global tests in the sense of definition~\eqref{eq:global-test-type-1-error}. Here we highlight two:
+\begin{itemize}
+\item Fisher combination test: Powerful against many weak signals.
+\item Bonferroni test: Powerful against few strong signals.
+\end{itemize}
+
+\subsubsection{Fisher combination test}
+
+Suppose that $p_1, \dots, p_m$ are independent (though this is a strong assumption that is often violated). Then, the Fisher combination test is
+\begin{equation}
+\phi(p_1, \dots, p_m) \equiv \mathbbm 1\left(-2\sum_{j = 1}^m \log p_j \geq Q_{1-\alpha}[\chi^2_{2m}]\right).
+\end{equation}
+Type-I error control~\eqref{eq:global-test-type-1-error} is based on the fact that
+\begin{equation}
+\text{if } p_1, \dots, p_m \overset{\text{i.i.d.}}\sim U[0,1], \text{ then } -2\sum_{j = 1}^m \log p_j \sim \chi^2_{2m}.
+\end{equation}
+If we have $X_j \sim N(\mu_j, 1)$ and the $p$-values are defined via $p_j = 2\Phi(-|X_j|)$, then
+\begin{equation}
+-2\log p_j \approx X_j^2.
+\end{equation}
+Therefore,
+\begin{equation}
+-2\sum_{j = 1}^m \log p_j \approx \sum_{j = 1}^m X_j^2.
+\end{equation}
+This helps us build intuition for what the Fisher combination test is doing. It's averaging the strengths of the signal across hypotheses.
+
+\subsubsection{Bonferroni test}
+
+Instead of averaging the signal across $p$-values, we might want to find the \textit{strongest} signal among the $p$-values. It makes sense that such a strategy would be powerful against sparse alternatives. We define the Bonferroni test via
+\begin{equation}
+\phi(p_1, \dots, p_m) \equiv \mathbbm 1\left(\min_{1 \leq j \leq m} p_j \leq \alpha/m\right).
+\end{equation}
+The Bonferroni global test rejects if any of the $p$-values crosses the \textit{multiplicity-adjusted} or \textit{Bonferroni-adjusted} significance threshold of $\alpha/m$. The more hypotheses we test, the more stringent the significance threshold must be. We can verify the Type-I error control of the Bonferroni test via a union bound:
+\begin{equation}
+\mathbb P_{H_0}\left[\min_{1 \leq j \leq m} p_j \leq \alpha/m\right] \leq \sum_{j = 1}^m \mathbb P_{H_0}\left[p_j \leq \alpha/m\right] = m \cdot \alpha/m = \alpha.
+\end{equation}
+Importantly, while the Fisher combination test is valid only for independent $p$-values, \textit{the Bonferroni test is valid for arbitrary $p$-value dependency structures.} However, the Bonferroni bound derived above is tightest for independent $p$-values. For example, if the $p$-values are perfectly dependent, then no multiplicity correction is required at all.
+
+\subsection{Multiple testing} \label{subsec:multiple-testing}
+
+While global testing seeks to detect the presence of \textit{any} signals, multiple testing seeks to \textit{localize} these signals, i.e. find a subset $S$ of the null hypotheses that are false. Let $\{1, \dots, m\} = \mathcal H_0 \cup \mathcal H_1$, where $\mathcal H_0, \mathcal H_1$ are the sets of null hypotheses that are true and false, respectively. Ideally, we would like to have $S = \mathcal H_1$, but of course we typically cannot do this. We design methods such outputting sets $S$ satisfying satisfying some Type-I error control criterion, and compare their performance based on their power, e.g. as quantified by $\mathbb E[|S \cap \mathcal H_1|/|\mathcal H_1|]$. There are several Type-I error control criteria of interest, but we highlight the two most important ones:
+\begin{itemize}
+\item Family-wise error rate (FWER), defined
+\begin{equation}
+\text{FWER} \equiv \mathbb P[S \cap \mathcal H_0 \neq \varnothing].
+\end{equation}
+\item False discovery rate (FDR), defined
+\begin{equation}
+\text{FDR} \equiv \mathbb E\left[\frac{|S \cap \mathcal H_0|}{|S|}\right], \quad \text{where} \quad \frac{0}{0} \equiv 0.
+\label{eq:fdr-def}
+\end{equation}
+\end{itemize}
+The random quantity $\frac{|S \cap \mathcal H_0|}{|S|}$ is called the \textit{false discovery proportion} (FDP). Note that the FWER is a stricter error rate than the FDR. Controlling the FWER at level $\alpha$ implies that, with probability $1-\alpha$, the set $S$ contains no false discoveries at all. Controlling the FDR at level $q$ means that, on average, at most a proportion $q$ of the set $S$ can be false discoveries. Many methods have been proposed to control each of these error rates, but we highlight one each.
+
+\subsubsection{The Bonferroni procedure for FWER control}
+
+We discussed the Bonferroni test for the global null. This test can be extended to an FWER-controlling procedure:
+\begin{equation}
+S \equiv \{j: p_j \leq \alpha/m\}.
+\end{equation}
+Note that not all global tests can be extended to FWER-controlling procedures in this way. For example, the Fisher combination test does not single out any of the hypotheses, as it only aggregates the $p$-values. By contrast, the Bonferroni test searches for $p$-values that are individually very small, allowing for it to double as an FWER-controlling procedure. It is easy to verify that the Bonferroni procedure controls the FWER:
+\begin{equation}
+\mathbb P[S \cap \mathcal H_0 \neq \varnothing] = \mathbb P\left[\min_{j \in \mathcal H_0} p_j \leq \alpha/m\right] \leq \sum_{j \in \mathcal H_0} \mathbb P[p_j \leq \alpha/m] = \frac{|\mathcal H_0|}{m}\alpha \leq \alpha.
+\end{equation}
+Note that the FWER is actually controlled at the level $\frac{|\mathcal H_0|}{m}\alpha \leq \alpha$, making the Bonferroni test conservative to the extent that $|\mathcal H_0| < m$. The null proportion $\frac{|\mathcal H_0|}{m}$ has such an effect on the performance of many multiple testing procedures.
+
+\subsubsection{The Benjamini-Hochberg procedure for FDR control}
+
+Designing procedures with FDR control, as well as verifying the latter property, is typically harder than for FWER control. It is harder to decouple the effects of the individual hypotheses, as the denominator $|S|$ in the FDR definition~\eqref{eq:fdr-def} couples them together. Both the FDR criterion and the most popular FDR-controlling procedure were proposed by Benjamini and Hochberg in 1995.
+
+\paragraph{Procedure.} To define the BH procedure, consider thresholding the $p$-values at $t \in [0,1]$. We would expect $\mathbb E[|\{j: p_j \leq t\} \cap \mathcal H_0|] = |\mathcal H_0|t$ false discoveries among $\{j: p_j \leq t\}$. Since $|\mathcal H_0|$ is unknown, we can bound it from above by $mt$. This leads to the FDP estimate
+\begin{equation}
+\widehat{\text{FDP}}(t) \equiv \frac{mt}{|\{j: p_j \leq t\}|}.
+\end{equation}
+The BH procedure is then defined via
+\begin{equation}
+S \equiv \{j: p_j \leq \widehat t\}, \quad \text{where} \quad \widehat t = \max\{t \in [0,1]: \widehat{\text{FDP}}(t) \leq q\}.
+\end{equation}
+In words, we choose the most liberal $p$-value threshold for which the estimated FDP is below the nominal level $q$. Note that the set over which the above maximum is taken is always nonempty because it at least contains 0: $\widehat{\text{FDP}}(0) = \frac{0}{0} \equiv 0$.
+
+\paragraph{FDR control under independence.} Benjamini and Hochberg established that their procedure controls the FDR if the $p$-values are independent. Here we present an alternative argument due to Storey, Taylor, and Siegmund (2004).
+
+\begin{proof}
+We have
+\begin{equation}
+\begin{split}
+\text{FDR} = \mathbb E\left[\text{FDP}(\widehat t)\right] &= \mathbb E\left[\frac{|\{j \in \mathcal H_0: p_j \leq \widehat t\}|}{|\{j: p_j \leq \widehat t\}|}\right] \\
+&= \mathbb E\left[\frac{|\{j \in \mathcal H_0: p_j \leq \widehat t\}|}{m\widehat t}\widehat{\text{FDP}}(\widehat t)\right] \leq q \cdot \mathbb E\left[\frac{|\{j \in \mathcal H_0: p_j \leq \widehat t\}|}{m\widehat t}\right].
+\end{split}
+\end{equation}
+To prove that the last expectation is bounded above by 1, note that
+\begin{equation}
+M(t) \equiv \frac{|\{j \in \mathcal H_0: p_j \leq t\}|}{m t}
+\end{equation}
+is a backwards martingale with respect to the filtration
+\begin{equation}
+\mathcal F_t = \sigma(\{p_j: j \in \mathcal H_1\}, |\{j \in \mathcal H_0: p_j \leq t'\}| \text{ for } t' \geq t),
+\end{equation}
+with $t$ running backwards from 1 to 0. Indeed, for $s < t$ we have
+\begin{equation}
+\mathbb E[M(s)|\mathcal F_t] = \mathbb E\left[\left.\frac{|\{j \in \mathcal H_0: p_j \leq s\}|}{m s} \right| \mathcal F_t\right] = \frac{\frac{s}{t}|\{j \in \mathcal H_0: p_j \leq t\}|}{m s} = \frac{|\{j \in \mathcal H_0: p_j \leq t\}|}{m t} = M(t).
+\end{equation}
+The threshold $\widehat t$ is a stopping time with respect to this filtration, so by the optional stopping theorem, we have
+\begin{equation}
+\mathbb E\left[\frac{|\{j \in \mathcal H_0: p_j \leq \widehat t\}|}{m\widehat t}\right] = \mathbb E[M(\widehat t)] \leq \mathbb E[M(1)] = \frac{|\mathcal H_0|}{m} \leq 1.
+\end{equation}
+This completes the proof.
+\end{proof}
+
+\paragraph{FDR control under dependence.}
+
+The BH procedure has empirically been shown to control the FDR for a wide variety of dependency structures besides independence. However, theoretical FDR control results for the BH procedure are available only for a few dependency structures. A notable example is a type of positive dependency called \textit{positive regression dependence on a subset}, or PRDS. Benjamini and Yekutieli proved FDR control for BH under PRDS in 2001. This theoretical condition is somewhat hard to verify in practice, however. The simplest example of a set of PRDS $p$-values is when $\bm x \sim N(\bm \mu, \bm \Sigma) \in \mathbb R^m$ where $\bm \Sigma$ has all positive entries and the $p$-values are derived based on one-sided tests. Outside of this special case, there are few known instances of PRDS $p$-values.
+
+\section{High-dimensional inference under Model-X} \label{sec:model-x}
+
+All of the statistical inference done so far in this class was \textit{low-dimensional}: we assumed that the number of predictors $p$ was fixed and at most equal to the sample size $n$. However, some modern applications fall outside of this regime and therefore require new statistical methodology. We discuss here a line of work initiated by Candès, E., Fan, Y., Janson, L., \& Lv, J. (2018). Panning for gold: `model-X’ knockoffs for high dimensional controlled variable selection. Journal of the Royal Statistical Society: Series B (Statistical Methodology), 80(3), 551–577.
+
+\subsection{Motivation and problem statement}
+
+All statistical inference requires assumptions, and inherently difficult problems like high-dimensional inference require strong assumptions. One such assumption is the
+\begin{equation}
+\textit{Model-X assumption:} \text{ That the joint distribution of } (x_1, \dots, x_p) \text{ is known}.
+\end{equation}
+This assumption is in some sense the opposite of what we have been considering in this class so far: Usually we assume nothing about the joint distribution of covariates (we treat these as fixed anyways), and assume instead that $y|(x_1, \dots, x_p)$ follows a generalized linear model. Notably, this assumption is stronger than correct specification of a parametric model for $(x_1, \dots, x_p)$; it states that we know not only a model for this distribution but all of its parameters as well. Below we discuss the motivation for this assumption, and the inference problem that grows out of it.
+\paragraph{Motivation: Genome-wide association studies (GWAS).}
+
+In GWAS, $x_1, \dots, x_p \in \{0,1,2\}$ represent \textit{genotypes} of an individual at $p$ genomic locations. Suppose that humans typically have either an A or a T at genomic location $j$, where A is more common. Since we have two sets of chromosomes (one maternal and one paternal), the \textit{genotype} at this location can either be AA, AT, or TT. The allele T is called the \textit{minor allele} because it is less common, and $x_j$ is defined as the number of minor alleles an individual has at location $j$: AA implies $x_j = 0$, AT implies $x_j = 1$, TT implies $x_j = 2$. We collect this genotype information at $p$ genomic locations from each individual, as well as a response variable $y$, like disease status. The goal is to find the genomic locations whose genotypes are associated with the response. The nice thing in this application is that the joint distribution $(x_1, \dots, x_p)$ has been studied extensively in the field of population genetics, and is well-approximated by a \textit{hidden Markov model}. This motivates the model-X assumption.
+
+\paragraph{Problem statement.}
+
+It turns out that if we have a model for the joint distribution of the predictors, we need not make any assumptions on the distribution of the response given the predictors. But this leaves us with the following awkward question: If we have no parametric model for the response, then what even are the hypotheses we are testing? Well, for each genomic location $j$, we are trying to test whether the genotype at that location is associated with the response, controlling for the genotypes at other genomic locations. Probabilistically, this may be written as:
+\begin{equation}
+H_{0j}: x_j \perp \! \! \! \perp y \mid \bm x_{\text{-}j}.
+\label{eq:conditional-independence}
+\end{equation}
+Under mild assumptions, this hypothesis turns out to coincide with the usual $H_{0j}: \beta_j = 0$ in the case when $y$ does follow a GLM. The problem statement, then, is to test the hypotheses $H_{0j}$ based on data
+\begin{equation}
+(x_{i1}, \dots, x_{ip}, y_i) \overset{\text{i.i.d.}}\sim F_{\bm x, y}, \quad i = 1, \dots, n,
+\end{equation}
+given knowledge of the distribution $F_{\bm x}$. Note that \textit{regularized regression} methods such as the LASSO have been developed to get estimates of regression coefficients in high dimensions. However, the issue with these shrinkage-based estimation methodologies is that they do not come with inferential guarantees and therefore cannot provide valid tests of the conditional independence hypothesis~\eqref{eq:conditional-independence}. Under the model-X assumption, we can get around this roadblock.
+
+\subsection{Conditional randomization test}
+
+One idea is to view $x_j$ as a treatment (though not necessarily binary) and $\bm x_{\text{-}j}$ as a set of covariates. The model-X assumption gives us knowledge of the \textit{propensity function} $p(x_j|\bm x_{\text{-}j})$, i.e. the distribution of treatment assignments given the covariates. In the spirit of Fisher's randomization test (see Homework 5 Problem 1), we can build a null distribution for any test statistic $T(\bm X, \bm y)$---e.g. a lasso coefficient---by \textit{randomly reassigning the treatment $x_j$ to each individual based on its covariates $\bm x_{\text{-}j}$}. More explicitly, let
+\begin{equation}
+\widetilde x_{ij} | \bm X, \bm y \overset{\text{ind}}\sim F_{x_j|\bm x_{\text{-}j} = \bm x_{i,\text{-}j}}.
+\end{equation}
+Let $\bm{\widetilde X}$ be the matrix obtained by replacing the $j$th column in $\bm X$ with $\widetilde{\widehat x}_{*j}$ as defined above. For a test statistic $T$, we then define the CRT $p$-value by comparing the test statistic's value on the original data with its distribution under resampling:
+\begin{equation}
+p_j^{\text{CRT}} \equiv \mathbb P[T(\bm{\widetilde X}, \bm y) \geq T(\bm X, \bm y)|\bm X, \bm y].
+\end{equation}
+In practice, we approximate this $p$-value by resampling a finite number $B$ of instances $\bm{\widetilde X}^b$ and setting
+\begin{equation}
+\widehat p_j^{\text{CRT}} \equiv \frac{1}{B+1}\sum_{b = 1}^B \mathbbm 1(T(\bm{\widetilde X}^b, \bm y) \geq T(\bm X, \bm y)).
+\end{equation}
+The CRT is a simple and elegant inferential framework that gives finite-sample valid $p$-values for high-dimensional inference. However, its adoption has been slowed by the computational cost of resampling.
+
+\subsection{Model-X knockoffs}
+
+An alternative to the CRT for model-X inference is \textit{model-X knockoffs}. This methodology requires constructing a set of $p$ new \textit{knockoff} variables $(\widetilde x_1, \dots, \widetilde x_p)$, whose joint distribution with the original variables satisfies the following exchangeability criterion:
+\begin{equation}
+\text{for each } j, \quad (x_j, \widetilde x_{j}) \overset d = (\widetilde x_{j}, x_j) \mid \bm x_{\text{-}j}, \bm{\widetilde x}_{\text{-}j}.
+\end{equation}
+Knockoff variables are meant to serve as valid \textit{negative controls} for the original variables: they have the same dependency structure but they have no association with the response $y$. Constructing such knockoff variables is a nontrivial endeavor that depends on the joint distribution of the original variables. If this can be done, then we can sample an entire knockoff matrix $\bm{\widetilde X}$, row by row. We then assess the significant of all $2p$ variables using test statistics $Z_1(\bm X, \bm{\widetilde X}, \bm y), \dots, Z_p(\bm X, \bm{\widetilde X}, \bm y), \widetilde Z_1(\bm X, \bm{\widetilde X}, \bm y), \dots, \widetilde Z_p(\bm X, \bm{\widetilde X}, \bm y)$, constructed to ensure the following swap-equivariance property: swapping $\bm X_{*j}$ with $\bm{\widetilde X}_{*j}$ results in $Z_j(\bm X, \bm{\widetilde X}, \bm y)$ swapping with $\widetilde Z_j(\bm X, \bm{\widetilde X}, \bm y)$, while all the other test statistics stay the same. For example, consider running the LASSO of $\bm y$ on the \textit{augmented design matrix} $[\bm X, \bm{\widetilde X}]$, and defining the $Z_j$'s as the fitted coefficients for the corresponding variables. With these $Z_j$'s in hand, the idea is to define the significance of the $j$th original variable by comparing the test statistics for itself and for its knockoff:
+\begin{equation}
+T_j(\bm X, \bm{\widetilde X}, \bm y) \equiv Z_j(\bm X, \bm{\widetilde X}, \bm y) - \widetilde Z_j(\bm X, \bm{\widetilde X}, \bm y).
+\end{equation}
+Large values of $T_j$ are evidence against $H_{0j}$. If the knockoffs are constructed correctly, then the test statistics $T_j$ for null $j$ can be shown to have symmetric distributions around zero. In other words, the original variable and its knockoff are equally likely to be more significant. Using this observation, a clever multiple testing algorithm called \textit{Selective SeqStep} can be used to choose a cutoff $\widehat t$ for the test statistics in a way that provably controls the FDR at a pre-specified level $q$. Remarkably, this entire construction bypasses the construction of $p$-values!
+
+\subsection{Comparing CRT to MX knockoffs} \label{sec:crt-knockoffs-comparison}
+
+There are pros and cons to both the CRT and MX knockoffs. Both procedures offer valid, finite-sample inference in high dimensions, which sets them apart from many other inferential methodologies. Both procedures require the model-X assumption, however, which may or may not be reasonable in a given application. MX knockoffs is the more popular methodology at this time, due to its computational speed. It can be used to carry out inference for all $p$ hypotheses in ``one shot'', by running one big regularized regression on the augmented design matrix. It has been applied successfully to genome-wide association studies, using a hidden Markov model as the model for X. On the other hand, MX knockoffs is a randomized procedure, giving different results for different realizations of $\bm{\widetilde X}$. Furthermore, it does not provide $p$-values quantifying the significance of individual predictors, which hinders the interpretability of its results. On the other hand, the CRT requires more computation than knockoffs, so it has been slower to be adopted in practice. But this procedure is not randomized in the same way that knockoffs is; with more computation its results can be arbitrarily ``de-randomized.'' Furthermore, the CRT does have a $p$-value output, which facilitates easy interpretation and more flexibility for downstream multiple testing.
+
+
+\end{document}
